@@ -22,7 +22,7 @@ export function generateCompletedReport(tasks: Task[], language: Language = 'ml'
   });
 
   if (language === 'ml') {
-    let msg = `🌟 *ടാസ്കാതി ദിനചര്യ റിപ്പോർട്ട് - പൂർത്തിയായവ* 🌟\n`;
+    let msg = `🌟 *ONE DAY ദിനചര്യ റിപ്പോർട്ട് - പൂർത്തിയായവ* 🌟\n`;
     msg += `📅 തീയതി: ${dateStr}\n`;
     msg += `✅ പൂർത്തിയായവ: ${completed.length}/${total}\n`;
     msg += `🔥 തുടർച്ച: ${streak} ദിവസങ്ങൾ\n\n`;
@@ -41,7 +41,7 @@ export function generateCompletedReport(tasks: Task[], language: Language = 'ml'
     msg += `\nഅൽഹംദുലില്ലാഹ്! നാഥൻ സ്വീകരിക്കട്ടെ. 🤲`;
     return msg;
   } else {
-    let msg = `🌟 *TASKATI DAILY REPORT - COMPLETED TASKS* 🌟\n`;
+    let msg = `🌟 *ONE DAY DAILY REPORT - COMPLETED TASKS* 🌟\n`;
     msg += `📅 Date: ${dateStr}\n`;
     msg += `✅ Completed: ${completed.length}/${total}\n`;
     msg += `🔥 Streak: ${streak} Days\n\n`;
@@ -71,7 +71,7 @@ export function generatePendingReport(tasks: Task[], language: Language = 'ml'):
   });
 
   if (language === 'ml') {
-    let msg = `⚠️ *ടാസ്കാതി ഓർമ്മപ്പെടുത്തൽ - പൂർത്തിയാവാത്തവ* ⚠️\n`;
+    let msg = `⚠️ *ONE DAY ഓർമ്മപ്പെടുത്തൽ - പൂർത്തിയാവാത്തവ* ⚠️\n`;
     msg += `📅 തീയതി: ${dateStr}\n`;
     msg += `⏳ ബാക്കിയുള്ളവ: ${pending.length}/${total}\n\n`;
 
@@ -89,7 +89,7 @@ export function generatePendingReport(tasks: Task[], language: Language = 'ml'):
 
     return msg;
   } else {
-    let msg = `⚠️ *TASKATI REMINDER - PENDING TASKS* ⚠️\n`;
+    let msg = `⚠️ *ONE DAY REMINDER - PENDING TASKS* ⚠️\n`;
     msg += `📅 Date: ${dateStr}\n`;
     msg += `⏳ Incomplete: ${pending.length}/${total}\n\n`;
 
@@ -98,9 +98,9 @@ export function generatePendingReport(tasks: Task[], language: Language = 'ml'):
     } else {
       msg += `*Pending Routines to Complete:*\n`;
       pending.forEach((t, index) => {
-        msg += `${index + 1}. ⏳ ${t.title} - Scheduled: ${t.time}\n`;
+        msg += `${index + 1}. ⏳ ${t.title} - Due: ${t.time}\n`;
       });
-      msg += `\nPlease complete your pending routines on time! 🔔`;
+      msg += `\nPlease check your schedule and complete them soon! 🔔`;
     }
 
     return msg;
@@ -108,19 +108,23 @@ export function generatePendingReport(tasks: Task[], language: Language = 'ml'):
 }
 
 export function openWhatsApp(phone: string, text: string) {
-  const cleanPhone = formatPhoneNumber(phone);
+  const formatted = formatPhoneNumber(phone);
   const encoded = encodeURIComponent(text);
-  const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encoded}`;
+  const url = formatted
+    ? `https://api.whatsapp.com/send?phone=${formatted}&text=${encoded}`
+    : `https://api.whatsapp.com/send?text=${encoded}`;
   if (typeof window !== 'undefined') {
     window.open(url, '_blank');
   }
 }
 
-export function openSMS(phone: string, text: string) {
-  const cleanPhone = formatPhoneNumber(phone);
+export function openSms(phone: string, text: string) {
+  const formatted = formatPhoneNumber(phone);
   const encoded = encodeURIComponent(text);
-  const url = `sms:${cleanPhone}?body=${encoded}`;
+  const url = `sms:${formatted}?body=${encoded}`;
   if (typeof window !== 'undefined') {
     window.location.href = url;
   }
 }
+
+export const openSMS = openSms;

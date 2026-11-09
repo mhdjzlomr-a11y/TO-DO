@@ -12,11 +12,13 @@ import {
   openWhatsApp
 } from '@/lib/whatsappHelper';
 
-// Still Theme Components
-import StillTodayFocus from '@/components/StillTodayFocus';
-import StillJourneyCard from '@/components/StillJourneyCard';
-import StillCategoryPills from '@/components/StillCategoryPills';
-import StillTaskCard from '@/components/StillTaskCard';
+// Taskati Components
+import OverviewChart from '@/components/OverviewChart';
+import TaskListBox from '@/components/TaskListBox';
+import InProgressCard from '@/components/InProgressCard';
+import YearlyProgressDonut from '@/components/YearlyProgressDonut';
+import MainHabitsRow from '@/components/MainHabitsRow';
+import TaskCard from '@/components/TaskCard';
 
 // Modals
 import DhikrModal from '@/components/DhikrModal';
@@ -26,40 +28,56 @@ import PhoneNotificationModal from '@/components/PhoneNotificationModal';
 import AutoNotificationSettingsModal from '@/components/AutoNotificationSettingsModal';
 import InstallPwaPrompt from '@/components/InstallPwaPrompt';
 
+// Lucide Icons
 import {
-  Plus,
-  BellRing,
-  X,
+  Search,
   Bell,
+  BellRing,
+  Sun,
+  Moon,
   Globe,
-  Zap,
-  Star,
-  Compass,
+  LayoutDashboard,
+  FolderKanban,
+  CheckSquare,
+  CalendarDays,
+  BarChart3,
+  MessageSquare,
+  Settings,
+  LogOut,
+  Sparkles,
+  Smartphone,
+  CheckCircle2,
+  AlertTriangle,
+  X,
+  Plus,
+  Clock,
   BookOpen,
   Hash,
-  User,
-  Phone,
-  CheckCircle2,
-  AlertTriangle
+  Menu,
+  ChevronDown
 } from 'lucide-react';
 
-const STORAGE_KEY = 'taskati_daily_tasks_v1';
-const STREAK_KEY = 'taskati_daily_streak_v1';
-const LAST_DATE_KEY = 'taskati_last_active_date_v1';
-const LANG_KEY = 'taskati_lang_v1';
-const PHONE_KEY = 'taskati_saved_phone_number_v1';
+const STORAGE_KEY = 'oneday_daily_tasks_v2';
+const STREAK_KEY = 'oneday_daily_streak_v2';
+const LAST_DATE_KEY = 'oneday_last_active_date_v2';
+const LANG_KEY = 'oneday_lang_v2';
+const THEME_KEY = 'oneday_theme_v2';
+const PHONE_KEY = 'oneday_saved_phone_number_v2';
 
 export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [streak, setStreak] = useState<number>(28); // Matches the 28 Days Streak from screenshot!
+  const [streak, setStreak] = useState<number>(18);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'completed' | 'spiritual' | 'learning'>('all');
-  const [activeTab, setActiveTab] = useState<'home' | 'discover' | 'programs' | 'insights' | 'profile'>('home');
+  const [activeNav, setActiveNav] = useState<'dashboard' | 'projects' | 'tasks' | 'calendar' | 'report' | 'messages' | 'settings'>('dashboard');
 
-  // Language
+  // Language & Theme
   const [language, setLanguage] = useState<Language>('ml');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Modals state
+  // Modals
   const [selectedCounterTask, setSelectedCounterTask] = useState<Task | null>(null);
   const [selectedReadingTask, setSelectedReadingTask] = useState<Task | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -71,7 +89,7 @@ export default function Home() {
   const t = TRANSLATIONS[language];
   const isRtl = language === 'ar';
 
-  // In-app alert toast listener
+  // Listen to in-app custom event alerts
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handleToast = (e: Event) => {
@@ -85,9 +103,18 @@ export default function Home() {
     return () => window.removeEventListener('taskati-alert', handleToast);
   }, []);
 
-  // Initialize tasks & streak
+  // Initialize theme, language & tasks from localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    // Load Theme
+    const savedTheme = (localStorage.getItem(THEME_KEY) as 'light' | 'dark') || 'light';
+    setTheme(savedTheme);
+    if (savedTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
 
     // Load Language
     const savedLang = (localStorage.getItem(LANG_KEY) as Language) || 'ml';
@@ -97,11 +124,11 @@ export default function Home() {
     try {
       const todayStr = new Date().toISOString().split('T')[0];
       const savedDate = localStorage.getItem(LAST_DATE_KEY);
-      const savedTasks = localStorage.getItem(STORAGE_KEY);
+      const savedTasks = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('taskati_daily_tasks_v1');
       const savedStreak = localStorage.getItem(STREAK_KEY);
 
       if (savedStreak) {
-        setStreak(parseInt(savedStreak, 10) || 28);
+        setStreak(parseInt(savedStreak, 10) || 18);
       }
 
       if (savedTasks) {
@@ -128,7 +155,7 @@ export default function Home() {
           setTasks(rolledOver);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(rolledOver));
           localStorage.setItem(LAST_DATE_KEY, todayStr);
-          const newStreak = (parseInt(savedStreak || '28', 10) || 28) + 1;
+          const newStreak = (parseInt(savedStreak || '18', 10) || 18) + 1;
           setStreak(newStreak);
           localStorage.setItem(STREAK_KEY, newStreak.toString());
         } else {
@@ -152,24 +179,28 @@ export default function Home() {
     }
   }, [tasks, language]);
 
-  // Cycle Language
-  const cycleLanguage = (targetLang?: Language) => {
-    triggerHaptic([30]);
-    let nextLang: Language = 'en';
-    if (targetLang) {
-      nextLang = targetLang;
-    } else if (language === 'ml') {
-      nextLang = 'en';
-    } else if (language === 'en') {
-      nextLang = 'ar';
+  // Toggle Dark / Normal Theme
+  const toggleTheme = () => {
+    triggerHaptic([25]);
+    const nextTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(nextTheme);
+    localStorage.setItem(THEME_KEY, nextTheme);
+    if (nextTheme === 'dark') {
+      document.documentElement.classList.add('dark');
     } else {
-      nextLang = 'ml';
+      document.documentElement.classList.remove('dark');
     }
-    setLanguage(nextLang);
-    localStorage.setItem(LANG_KEY, nextLang);
   };
 
-  // Save to LocalStorage
+  // Change Language
+  const handleSelectLanguage = (lang: Language) => {
+    triggerHaptic([30]);
+    setLanguage(lang);
+    localStorage.setItem(LANG_KEY, lang);
+    setIsLangDropdownOpen(false);
+  };
+
+  // Save Tasks
   const saveTasks = (newTasks: Task[]) => {
     setTasks(newTasks);
     if (typeof window !== 'undefined') {
@@ -219,7 +250,7 @@ export default function Home() {
     }
   };
 
-  // Save Reading Options
+  // Save Reading
   const handleSaveReading = (taskId: string, details: ReadingDetails, markCompleted: boolean) => {
     const updated = tasks.map((item) => {
       if (item.id === taskId) {
@@ -251,9 +282,23 @@ export default function Home() {
     triggerHaptic([30]);
   };
 
-  // Quick WhatsApp helpers
+  // Reset Day Rollover
+  const handleResetDay = () => {
+    if (confirm(language === 'ml' ? 'ഇന്നത്തെ എല്ലാ ടാസ്കുകളും റീസെറ്റ് ചെയ്യണോ?' : 'Reset all routines for today?')) {
+      const reset = tasks.map((t) => ({
+        ...t,
+        completed: false,
+        counterCurrent: t.type === 'counter' ? 0 : t.counterCurrent,
+        readingDetails: t.readingDetails ? { ...t.readingDetails, minutesSpent: 0 } : undefined
+      }));
+      saveTasks(reset);
+      triggerHaptic([50, 50]);
+    }
+  };
+
+  // Quick WhatsApp Dispatch
   const handleQuickSendCompleted = () => {
-    const phone = localStorage.getItem(PHONE_KEY) || '';
+    const phone = localStorage.getItem(PHONE_KEY) || localStorage.getItem('taskati_saved_phone_number_v1') || '';
     if (!phone) {
       setIsPhoneModalOpen(true);
     } else {
@@ -263,7 +308,7 @@ export default function Home() {
   };
 
   const handleQuickSendPending = () => {
-    const phone = localStorage.getItem(PHONE_KEY) || '';
+    const phone = localStorage.getItem(PHONE_KEY) || localStorage.getItem('taskati_saved_phone_number_v1') || '';
     if (!phone) {
       setIsPhoneModalOpen(true);
     } else {
@@ -272,7 +317,10 @@ export default function Home() {
     }
   };
 
-  // Filtered Tasks
+  // Derived Task Collections
+  const spiritualTasks = useMemo(() => tasks.filter((t) => t.category === 'spiritual'), [tasks]);
+  const learningTasks = useMemo(() => tasks.filter((t) => t.category === 'learning'), [tasks]);
+
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
       const matchesSearch =
@@ -295,24 +343,18 @@ export default function Home() {
   const completedCount = tasks.filter((item) => item.completed).length;
   const pendingCount = totalCount - completedCount;
 
-  const dateFormatted = new Date().toLocaleDateString(language === 'ml' ? 'ml-IN' : 'en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric'
-  });
-
   return (
     <div
       dir={isRtl ? 'rtl' : 'ltr'}
-      className="min-h-screen bg-still-gradient text-white flex flex-col pb-28 select-none"
+      className="min-h-screen bg-taskati-bg dark:bg-[#0D1021] text-taskati-navy dark:text-white flex transition-colors duration-300 select-none"
     >
       {/* Floating In-App Alert Toast Banner */}
       {activeToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-pop">
-          <div className="bg-[#1C183B] text-white rounded-3xl p-4 shadow-still-glow flex items-center justify-between gap-3 border border-[#A58BF8]/30">
+          <div className="bg-[#181C33] text-white rounded-3xl p-4 shadow-2xl flex items-center justify-between gap-3 border border-taskati-blue/40">
             <div className="flex items-center gap-2.5 min-w-0">
-              <span className="w-9 h-9 rounded-2xl bg-[#A58BF8]/20 flex items-center justify-center flex-shrink-0 animate-bounce">
-                <BellRing className="w-5 h-5 text-[#C4B5FD]" />
+              <span className="w-9 h-9 rounded-2xl bg-taskati-blue/20 flex items-center justify-center flex-shrink-0 animate-bounce">
+                <BellRing className="w-5 h-5 text-taskati-blue" />
               </span>
               <div className="truncate">
                 <h4 className="text-xs font-bold truncate">{activeToast.title}</h4>
@@ -329,256 +371,439 @@ export default function Home() {
         </div>
       )}
 
-      {/* Main Container constrained for mobile elegance */}
-      <div className="w-full max-w-lg mx-auto px-5 pt-8 space-y-6">
-        {/* ======================================================== */}
-        {/* TOP HEADER (Matching the Still Screenshot)               */}
-        {/* ======================================================== */}
-        <header className="flex items-start justify-between">
-          <div className="space-y-1">
-            {/* App Name: Still */}
-            <h1 className="text-3xl font-black tracking-tight text-white flex items-center gap-1.5">
-              <span>{language === 'ar' ? 'سكون.' : 'Still'}</span>
-            </h1>
-
-            {/* Greeting: Good evening, Maya 🌙 */}
-            <h2 className="text-xl font-bold text-white/95 flex items-center gap-1.5 pt-1">
-              <span>
-                {language === 'ml'
-                  ? 'അസ്സലാമു അലൈക്കും'
-                  : language === 'ar'
-                  ? 'السلام عليكم ورحمة الله'
-                  : 'Good evening, Maya'}
-              </span>
-              <span>🌙</span>
-            </h2>
-
-            {/* Date: Tuesday, October 26 */}
-            <p className="text-xs font-medium text-white/60">
-              {dateFormatted}
-            </p>
+      {/* ======================================================== */}
+      {/* 1. LEFT SIDEBAR (Matching Exact Taskati Layout)          */}
+      {/* ======================================================== */}
+      <aside className="hidden lg:flex w-64 bg-white dark:bg-[#121528] border-r border-taskati-border dark:border-white/5 flex-col justify-between p-6 flex-shrink-0">
+        <div className="space-y-8">
+          {/* Logo: ONE DAY. */}
+          <div className="flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-taskati-blue text-white flex items-center justify-center font-black text-lg shadow-sm">
+              1
+            </span>
+            <span className="text-2xl font-black tracking-tight text-taskati-navy dark:text-white font-sans">
+              ONE DAY<span className="text-taskati-blue">.</span>
+            </span>
           </div>
 
-          {/* Right Action Icons matching Screenshot */}
-          <div className="flex items-center gap-2.5 pt-1">
-            {/* Language toggle pill */}
+          {/* Navigation Items matching Taskati image */}
+          <nav className="space-y-1.5">
+            {[
+              { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard },
+              { id: 'projects', label: t.projects, icon: FolderKanban },
+              { id: 'tasks', label: t.myTasks, icon: CheckSquare },
+              { id: 'calendar', label: t.calendar, icon: CalendarDays },
+              { id: 'report', label: t.report, icon: BarChart3 },
+              { id: 'messages', label: t.messages, icon: MessageSquare, onClick: () => setIsPhoneModalOpen(true) },
+              { id: 'settings', label: t.settings, icon: Settings, onClick: () => setIsAutoModalOpen(true) },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isActive = activeNav === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    triggerHaptic([20]);
+                    setActiveNav(item.id as any);
+                    if (item.onClick) item.onClick();
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
+                    isActive
+                      ? 'bg-taskati-blue text-white shadow-taskati'
+                      : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white hover:bg-taskati-bg dark:hover:bg-white/5'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+
+            {/* Reset / Day Rollover Button */}
             <button
-              onClick={() => cycleLanguage()}
-              className="px-2.5 py-1.5 rounded-2xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white/90 border border-white/15 transition-all flex items-center gap-1"
-              title="Change Language"
+              onClick={handleResetDay}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all pt-3 border-t border-taskati-border/60 dark:border-white/5"
             >
-              <Globe className="w-3.5 h-3.5 text-[#C4B5FD]" />
-              <span>{language.toUpperCase()}</span>
+              <LogOut className="w-4 h-4" />
+              <span>{t.signOut}</span>
+            </button>
+          </nav>
+        </div>
+
+        {/* Bottom Card: ONE DAY Pro (matching Taskati screenshot) */}
+        <div className="relative overflow-hidden rounded-3xl p-5 bg-gradient-to-br from-[#5051F9] via-[#6355F6] to-[#7B4EE4] text-white shadow-taskati space-y-3">
+          <div className="w-9 h-9 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center font-black text-sm">
+            T.
+          </div>
+          <div>
+            <h4 className="text-sm font-bold tracking-tight">{t.proTitle}</h4>
+            <p className="text-[11px] text-white/80 leading-snug pt-0.5">{t.proDesc}</p>
+          </div>
+          <button
+            onClick={() => setIsAutoModalOpen(true)}
+            className="w-full py-2 px-3 rounded-xl bg-white text-taskati-blue font-bold text-xs shadow-sm hover:bg-white/95 active:scale-95 transition-all text-center block"
+          >
+            {t.getPro}
+          </button>
+        </div>
+      </aside>
+
+      {/* ======================================================== */}
+      {/* 2. MAIN CONTENT AREA                                    */}
+      {/* ======================================================== */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        {/* Top Header Bar */}
+        <header className="sticky top-0 z-30 bg-white/80 dark:bg-[#121528]/80 backdrop-blur-md border-b border-taskati-border dark:border-white/5 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
+          {/* Mobile Menu Toggle & Brand */}
+          <div className="flex items-center gap-3 lg:hidden">
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 rounded-xl bg-taskati-bg dark:bg-white/5 text-taskati-navy dark:text-white"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <span className="text-lg font-black tracking-tight text-taskati-navy dark:text-white">
+              ONE DAY<span className="text-taskati-blue">.</span>
+            </span>
+          </div>
+
+          {/* Search Box matching screenshot */}
+          <div className="hidden sm:flex items-center gap-2 flex-1 max-w-md bg-taskati-bg dark:bg-[#181C33] px-3.5 py-2 rounded-2xl border border-taskati-border/60 dark:border-white/5 focus-within:border-taskati-blue">
+            <Search className="w-4 h-4 text-taskati-muted dark:text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t.searchPlaceholder}
+              className="bg-transparent text-xs font-semibold outline-none w-full text-taskati-navy dark:text-white placeholder:text-taskati-muted dark:placeholder:text-gray-500"
+            />
+          </div>
+
+          {/* Right Header Controls */}
+          <div className="flex items-center gap-2.5 sm:gap-3.5">
+            {/* Language Selector Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-taskati-bg dark:bg-[#181C33] border border-taskati-border/60 dark:border-white/5 text-xs font-bold text-taskati-navy dark:text-white hover:border-taskati-blue transition-all"
+              >
+                <Globe className="w-3.5 h-3.5 text-taskati-blue" />
+                <span>
+                  {language === 'en' ? 'Eng (US)' : language === 'ml' ? 'മലയാളം' : 'العربية'}
+                </span>
+                <ChevronDown className="w-3 h-3 text-taskati-muted" />
+              </button>
+
+              {isLangDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-36 bg-white dark:bg-[#181C33] rounded-2xl shadow-xl border border-taskati-border dark:border-white/10 p-1.5 z-40 animate-pop">
+                  {[
+                    { id: 'ml', label: 'മലയാളം' },
+                    { id: 'en', label: 'Eng (US)' },
+                    { id: 'ar', label: 'العربية' },
+                  ].map((l) => (
+                    <button
+                      key={l.id}
+                      onClick={() => handleSelectLanguage(l.id as Language)}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                        language === l.id
+                          ? 'bg-taskati-blue text-white'
+                          : 'text-taskati-navy dark:text-gray-300 hover:bg-taskati-bg dark:hover:bg-white/5'
+                      }`}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Dark / Light Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 sm:px-3 sm:py-1.5 rounded-2xl bg-taskati-bg dark:bg-[#181C33] border border-taskati-border/60 dark:border-white/5 text-xs font-bold text-taskati-navy dark:text-white hover:border-taskati-blue transition-all flex items-center gap-1.5"
+              title={theme === 'dark' ? t.themeLight : t.themeDark}
+            >
+              {theme === 'dark' ? (
+                <>
+                  <Sun className="w-4 h-4 text-amber-400" />
+                  <span className="hidden sm:inline">{t.themeLight}</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-4 h-4 text-indigo-500" />
+                  <span className="hidden sm:inline">{t.themeDark}</span>
+                </>
+              )}
             </button>
 
-            {/* Notification Bell with red dot */}
+            {/* Notification Bell */}
             <button
               onClick={() => setIsAutoModalOpen(true)}
-              className="p-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/15 relative text-white transition-all"
-              title="Notification System"
+              className="p-2 sm:p-2.5 rounded-2xl bg-taskati-bg dark:bg-[#181C33] border border-taskati-border/60 dark:border-white/5 text-taskati-navy dark:text-white hover:border-taskati-blue relative transition-all"
+              title={t.alertsActive}
             >
-              <span className="w-2 h-2 rounded-full bg-rose-400 absolute top-2 right-2 animate-ping" />
+              <span className="w-2 h-2 rounded-full bg-rose-500 absolute top-2 right-2 animate-ping" />
               <Bell className="w-4 h-4" />
             </button>
 
-            {/* Avatar Pill matching 'M' in screenshot with status dot */}
+            {/* User Avatar */}
             <div
               onClick={() => setIsPhoneModalOpen(true)}
-              className="w-10 h-10 rounded-2xl bg-[#8F73DF] text-white flex items-center justify-center font-black text-sm relative shadow-sm cursor-pointer hover:scale-105 transition-transform"
+              className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-[#5051F9] to-[#7B4EE4] text-white flex items-center justify-center font-black text-xs relative cursor-pointer hover:scale-105 transition-transform shadow-xs"
             >
-              <span>M</span>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#1E173D] absolute -top-0.5 -right-0.5" />
+              <span>1</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white dark:border-[#121528] absolute -top-0.5 -right-0.5" />
             </div>
           </div>
         </header>
 
-        {/* PWA Install Banner */}
-        <InstallPwaPrompt />
+        {/* Mobile Navigation Drawer */}
+        {isMobileMenuOpen && (
+          <div className="lg:hidden bg-white dark:bg-[#121528] border-b border-taskati-border dark:border-white/10 p-4 space-y-2 animate-pop">
+            <div className="flex items-center gap-2 pb-2 border-b border-taskati-border/60 dark:border-white/5">
+              <span className="text-sm font-bold text-taskati-navy dark:text-white">
+                {t.greeting}
+              </span>
+            </div>
+            {[
+              { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard },
+              { id: 'projects', label: t.projects, icon: FolderKanban },
+              { id: 'tasks', label: t.myTasks, icon: CheckSquare },
+              { id: 'messages', label: t.quickWhatsApp, icon: MessageSquare, onClick: () => setIsPhoneModalOpen(true) },
+              { id: 'settings', label: t.settings, icon: Settings, onClick: () => setIsAutoModalOpen(true) },
+            ].map((item) => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  if (item.onClick) item.onClick();
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-taskati-navy dark:text-white hover:bg-taskati-bg dark:hover:bg-white/5"
+              >
+                <item.icon className="w-4 h-4 text-taskati-blue" />
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* PWA Install Prompt */}
+        <div className="px-4 sm:px-8 pt-4">
+          <InstallPwaPrompt />
+        </div>
 
         {/* ======================================================== */}
-        {/* SECTION 1: TODAY'S FOCUS (White Cards from Screenshot)  */}
+        {/* 3. TASKATI DASHBOARD GRID (Matching Screenshot)          */}
         {/* ======================================================== */}
-        <StillTodayFocus
-          tasks={tasks}
-          language={language}
-          onOpenCounter={(tk) => setSelectedCounterTask(tk)}
-          onToggle={handleToggleTask}
-        />
+        <main className="px-4 sm:px-8 py-6 space-y-6">
+          {/* Main 3-Column Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* ---------------------------------------------------- */}
+            {/* LEFT 2 COLUMNS (Overview + Task Boxes + Habits)     */}
+            {/* ---------------------------------------------------- */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* 1. Overview Chart */}
+              <OverviewChart tasks={tasks} language={language} />
 
-        {/* ======================================================== */}
-        {/* SECTION 2: YOUR JOURNEY (Streak & Glow Bar)              */}
-        {/* ======================================================== */}
-        <StillJourneyCard
-          streak={streak}
-          completedCount={completedCount}
-          totalCount={totalCount}
-          language={language}
-        />
+              {/* 2. Middle Row: 2 Task Boxes */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                {/* Daily Task Box (Spiritual Routines) */}
+                <TaskListBox
+                  title={t.dailyTaskTitle}
+                  tasks={spiritualTasks.slice(0, 5)}
+                  language={language}
+                  onToggle={handleToggleTask}
+                  onAddNew={() => setIsAddModalOpen(true)}
+                  onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+                />
 
-        {/* ======================================================== */}
-        {/* SECTION 3: EXPLORE CATEGORIES (Translucent Squircles)    */}
-        {/* ======================================================== */}
-        <StillCategoryPills
-          language={language}
-          onSelectCategory={(cat) => setActiveFilter(cat)}
-          onOpenPhone={() => setIsPhoneModalOpen(true)}
-          onOpenAuto={() => setIsAutoModalOpen(true)}
-        />
+                {/* Weekly Task Box (Learning & Reading) */}
+                <TaskListBox
+                  title={t.weeklyTaskTitle}
+                  tasks={learningTasks}
+                  language={language}
+                  onToggle={handleToggleTask}
+                  onAddNew={() => setIsAddModalOpen(true)}
+                  onOpenReading={(tk) => setSelectedReadingTask(tk)}
+                />
+              </div>
 
-        {/* ======================================================== */}
-        {/* SECTION 4: ALL SCHEDULED ROUTINES                        */}
-        {/* ======================================================== */}
-        <section className="space-y-3.5 pt-2">
-          {/* Header & Filter Pills */}
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-white tracking-wide">
-              {language === 'ml' ? 'ഇന്നത്തെ ദിനചര്യകൾ' : language === 'ar' ? 'أوراد اليوم' : 'Daily Routines'}
-            </h3>
+              {/* 3. Main Habits (Yearly) Squircle Row */}
+              <MainHabitsRow
+                tasks={tasks}
+                language={language}
+                onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+                onOpenReading={(tk) => setSelectedReadingTask(tk)}
+              />
+            </div>
 
-            {/* Filter Pills */}
-            <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-2xl p-1 text-[11px] font-bold">
-              {(['all', 'pending', 'completed'] as const).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setActiveFilter(f)}
-                  className={`px-2.5 py-1 rounded-xl transition-all ${
-                    activeFilter === f
-                      ? 'bg-[#8F73DF] text-white shadow-sm'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  {f === 'all'
-                    ? `${t.all} (${totalCount})`
-                    : f === 'pending'
-                    ? `${t.pending} (${pendingCount})`
-                    : `${t.completed} (${completedCount})`}
-                </button>
-              ))}
+            {/* ---------------------------------------------------- */}
+            {/* RIGHT 1 COLUMN (In Progress + Donut + WhatsApp)      */}
+            {/* ---------------------------------------------------- */}
+            <div className="space-y-6">
+              {/* 1. In Progress Card */}
+              <InProgressCard
+                tasks={tasks}
+                language={language}
+                onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+                onOpenReading={(tk) => setSelectedReadingTask(tk)}
+                onAddNew={() => setIsAddModalOpen(true)}
+              />
+
+              {/* 2. Yearly Progress Donut */}
+              <YearlyProgressDonut
+                completed={completedCount}
+                total={totalCount}
+                language={language}
+              />
+
+              {/* 3. WhatsApp & SMS Reports Quick Dispatch Card */}
+              <div className="bg-white dark:bg-[#181C33] rounded-3xl p-5 border border-taskati-border dark:border-white/10 shadow-taskati-card space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-taskati-navy dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>{t.quickWhatsApp}</span>
+                  </h4>
+                  <button
+                    onClick={() => setIsPhoneModalOpen(true)}
+                    className="text-[10px] font-bold text-taskati-blue hover:underline"
+                  >
+                    {t.managePhone}
+                  </button>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  {/* Button 1: Send Completed */}
+                  <button
+                    onClick={handleQuickSendCompleted}
+                    className="w-full py-2.5 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>
+                      {language === 'ml'
+                        ? `പൂർത്തിയായവ (${completedCount}) WhatsApp`
+                        : `${t.sendCompleted} (${completedCount})`}
+                    </span>
+                  </button>
+
+                  {/* Button 2: Send Pending */}
+                  <button
+                    onClick={handleQuickSendPending}
+                    className="w-full py-2.5 px-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm"
+                  >
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>
+                      {language === 'ml'
+                        ? `ബാക്കിയുള്ളവ (${pendingCount}) WhatsApp`
+                        : `${t.sendPending} (${pendingCount})`}
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Cards List in Serene Glass Style */}
-          <div className="space-y-3">
-            {filteredTasks.map((task) => (
-              <StillTaskCard
-                key={task.id}
-                task={task}
-                language={language}
-                onToggle={handleToggleTask}
-                onOpenCounter={(tk) => setSelectedCounterTask(tk)}
-                onOpenReading={(tk) => setSelectedReadingTask(tk)}
-                onDelete={handleDeleteTask}
-              />
-            ))}
-          </div>
-        </section>
+          {/* ======================================================== */}
+          {/* 4. LOWER SECTION: ALL 13 ROUTINES IN COLORFUL CAPSULES  */}
+          {/* ======================================================== */}
+          <section className="bg-white dark:bg-[#181C33] rounded-3xl p-6 border border-taskati-border dark:border-white/10 shadow-taskati-card space-y-5">
+            {/* Header & Filter Pills */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-taskati-border/60 dark:border-white/5">
+              <div>
+                <h3 className="text-base font-bold text-taskati-navy dark:text-white flex items-center gap-2">
+                  <span>{t.routinesCapsules}</span>
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-taskati-blue/10 text-taskati-blue">
+                    {completedCount}/{totalCount}
+                  </span>
+                </h3>
+                <p className="text-[11px] text-taskati-muted dark:text-gray-400">
+                  {language === 'ml'
+                    ? '13 ദിനചര്യകളുടെയും വർണ്ണാഭമായ പുരോഗതി ബാറുകൾ'
+                    : '13 Daily Routines with colorful progress capsule bars'}
+                </p>
+              </div>
 
-        {/* WhatsApp Quick Dispatch Button Bar */}
-        <div className="pt-2 flex items-center gap-3">
-          <button
-            onClick={handleQuickSendCompleted}
-            className="flex-1 py-3 px-4 rounded-3xl bg-emerald-600/90 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>{language === 'ml' ? `പൂർത്തിയായവ (${completedCount}) WhatsApp` : 'Send Completed'}</span>
-          </button>
+              {/* Filter Pills */}
+              <div className="flex flex-wrap items-center gap-1.5 bg-taskati-bg dark:bg-[#121528] p-1 rounded-2xl border border-taskati-border/60 dark:border-white/5 text-[11px] font-bold">
+                {(['all', 'pending', 'completed', 'spiritual', 'learning'] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setActiveFilter(f)}
+                    className={`px-3 py-1 rounded-xl transition-all ${
+                      activeFilter === f
+                        ? 'bg-taskati-blue text-white shadow-xs'
+                        : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white'
+                    }`}
+                  >
+                    {f === 'all'
+                      ? `${t.all} (${totalCount})`
+                      : f === 'pending'
+                      ? `${t.pending} (${pendingCount})`
+                      : f === 'completed'
+                      ? `${t.completed} (${completedCount})`
+                      : f === 'spiritual'
+                      ? t.spiritual
+                      : t.learning}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          <button
-            onClick={handleQuickSendPending}
-            className="flex-1 py-3 px-4 rounded-3xl bg-amber-600/90 hover:bg-amber-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md"
-          >
-            <AlertTriangle className="w-4 h-4" />
-            <span>{language === 'ml' ? `ബാക്കിയുള്ളവ (${pendingCount}) WhatsApp` : 'Send Pending'}</span>
-          </button>
-        </div>
+            {/* List of Colorful Capsule Bars matching image */}
+            <div className="space-y-3.5">
+              {filteredTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  language={language}
+                  onToggle={handleToggleTask}
+                  onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+                  onOpenReading={(tk) => setSelectedReadingTask(tk)}
+                  onDelete={handleDeleteTask}
+                />
+              ))}
+            </div>
+          </section>
+        </main>
       </div>
 
       {/* ======================================================== */}
-      {/* BOTTOM FLOATING DOCK (Matching Screenshot Navigation)    */}
+      {/* 5. MODALS & POPUPS                                       */}
       {/* ======================================================== */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#12162E]/90 backdrop-blur-xl border-t border-white/10 px-6 py-3 flex items-center justify-around shadow-2xl">
-        {/* Star / Home */}
-        <button
-          onClick={() => { setActiveTab('home'); setActiveFilter('all'); }}
-          className={`flex flex-col items-center gap-1 text-[11px] font-bold relative transition-colors ${
-            activeTab === 'home' ? 'text-white' : 'text-white/40 hover:text-white/80'
-          }`}
-        >
-          <Star className={`w-5 h-5 ${activeTab === 'home' ? 'text-[#C4B5FD] fill-current' : ''}`} />
-          <span>Home</span>
-          {activeTab === 'home' && (
-            <span className="w-4 h-0.5 bg-[#C4B5FD] rounded-full absolute -bottom-1" />
-          )}
-        </button>
-
-        {/* Discover / Tasks */}
-        <button
-          onClick={() => { setActiveTab('discover'); setActiveFilter('pending'); }}
-          className={`flex flex-col items-center gap-1 text-[11px] font-bold relative transition-colors ${
-            activeTab === 'discover' ? 'text-white' : 'text-white/40 hover:text-white/80'
-          }`}
-        >
-          <Compass className="w-5 h-5" />
-          <span>Discover</span>
-          {activeTab === 'discover' && (
-            <span className="w-4 h-0.5 bg-[#C4B5FD] rounded-full absolute -bottom-1" />
-          )}
-        </button>
-
-        {/* Center Floating Plus to Add Routine */}
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="w-12 h-12 -mt-6 rounded-full bg-gradient-to-tr from-[#8F73DF] to-[#B69DF8] text-white flex items-center justify-center shadow-still-glow active:scale-95 transition-transform"
-        >
-          <Plus className="w-6 h-6 stroke-[3]" />
-        </button>
-
-        {/* Programs / Reading Hub */}
-        <button
-          onClick={() => {
-            const readTask = tasks.find((tk) => tk.type === 'reading');
-            if (readTask) setSelectedReadingTask(readTask);
-          }}
-          className="flex flex-col items-center gap-1 text-[11px] font-bold text-white/40 hover:text-white/80 transition-colors"
-        >
-          <BookOpen className="w-5 h-5" />
-          <span>Programs</span>
-        </button>
-
-        {/* Profile / WhatsApp */}
-        <button
-          onClick={() => setIsPhoneModalOpen(true)}
-          className="flex flex-col items-center gap-1 text-[11px] font-bold text-white/40 hover:text-white/80 transition-colors"
-        >
-          <User className="w-5 h-5" />
-          <span>Profile</span>
-        </button>
-      </nav>
-
-      {/* Modals */}
+      {/* 100x Dhikr Counter Modal */}
       {selectedCounterTask && (
         <DhikrModal
           task={selectedCounterTask}
+          language={language}
           onClose={() => setSelectedCounterTask(null)}
-          onUpdateCounter={handleUpdateCounter}
+          onUpdateCount={(count, markCompleted) =>
+            handleUpdateCounter(selectedCounterTask.id, count, markCompleted)
+          }
         />
       )}
 
+      {/* Daily Reading Options Hub Modal */}
       {selectedReadingTask && (
         <ReadingOptionsModal
           task={selectedReadingTask}
+          language={language}
           onClose={() => setSelectedReadingTask(null)}
-          onSaveReading={handleSaveReading}
+          onSave={(details, markCompleted) =>
+            handleSaveReading(selectedReadingTask.id, details, markCompleted)
+          }
         />
       )}
 
+      {/* Add Custom Routine Modal */}
       {isAddModalOpen && (
         <AddTaskModal
+          language={language}
           onClose={() => setIsAddModalOpen(false)}
-          onAddTask={handleAddTask}
+          onAdd={handleAddTask}
         />
       )}
 
+      {/* Phone Notification & WhatsApp Settings Modal */}
       {isPhoneModalOpen && (
         <PhoneNotificationModal
           tasks={tasks}
@@ -588,6 +813,7 @@ export default function Home() {
         />
       )}
 
+      {/* Auto-Notification Engine Status Modal */}
       {isAutoModalOpen && (
         <AutoNotificationSettingsModal
           tasks={tasks}

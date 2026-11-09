@@ -1,14 +1,14 @@
 {
-  "name": "Daily Routine & Task Tracker",
-  "short_name": "DailyTasks",
-  "description": "Mobile-first daily task & habit tracker with times, dhikr counters, reading tracker, and reminders",
+  "name": "ONE DAY. - Daily Task & Routine Tracker",
+  "short_name": "ONE DAY",
+  "description": "Daily spiritual routines, Dhikr counters, reading options, time schedules, and automated alerts.",
   "start_url": "/",
   "id": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#4f46e5",
-  "orientation": "portrait",
+  "background_color": "#F4F6FC",
+  "theme_color": "#5051F9",
+  "orientation": "any",
   "categories": ["productivity", "lifestyle", "utilities"],
   "icons": [
     {

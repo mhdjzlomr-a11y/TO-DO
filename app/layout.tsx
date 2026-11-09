@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Taskati. - Daily Routine & Task Tracker PWA',
-  description: 'Mobile-friendly daily task tracker with specific times, dhikr counters, reading options, and push notifications.',
+  title: 'ONE DAY. - Daily Task & Routine Tracker',
+  description: 'Track daily spiritual routines, Dhikr counters, reading options, time schedules, and automated alerts.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Taskati.',
+    title: 'ONE DAY.',
   },
   icons: {
     icon: '/icons/icon-192.png',
@@ -31,12 +31,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="min-h-screen bg-taskati-bg text-taskati-text antialiased selection:bg-taskati-blue-light selection:text-taskati-blue">
+      <body className="min-h-screen bg-taskati-bg text-taskati-navy dark:bg-[#0D1021] dark:text-white antialiased selection:bg-taskati-blue-light selection:text-taskati-blue">
         {children}
         <script
           dangerouslySetInnerHTML={{
@@ -45,10 +45,10 @@ export default function RootLayout({
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js').then(
                     function(reg) {
-                      console.log('Taskati ServiceWorker registered successfully with scope:', reg.scope);
+                      console.log('ONE DAY ServiceWorker registered:', reg.scope);
                     },
                     function(err) {
-                      console.log('Taskati ServiceWorker registration failed:', err);
+                      console.log('ONE DAY ServiceWorker registration failed:', err);
                     }
                   );
                 });
