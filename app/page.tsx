@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Task, TaskCategory, ReadingDetails } from '@/types/task';
 import { DEFAULT_TASKS } from '@/lib/defaultTasks';
-import { sendLocalNotification, playChimeSound, triggerHaptic } from '@/lib/notifications';
+import { sendLocalNotification, triggerHaptic } from '@/lib/notifications';
+import { Language, TRANSLATIONS } from '@/lib/translations';
 import TaskCard from '@/components/TaskCard';
 import DhikrModal from '@/components/DhikrModal';
 import ReadingOptionsModal from '@/components/ReadingOptionsModal';
@@ -13,7 +14,6 @@ import InstallPwaPrompt from '@/components/InstallPwaPrompt';
 import {
   Search,
   Plus,
-  Calendar,
   CheckCircle2,
   Clock,
   Sparkles,
@@ -22,22 +22,18 @@ import {
   Flame,
   LayoutDashboard,
   CheckSquare,
-  BarChart3,
-  Settings,
-  Bell,
   RefreshCw,
-  Award,
-  ChevronRight,
   Headphones,
-  Mic,
   Moon,
-  Sun
+  Sun,
+  Globe
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 
 const STORAGE_KEY = 'taskati_daily_tasks_v1';
 const STREAK_KEY = 'taskati_daily_streak_v1';
 const LAST_DATE_KEY = 'taskati_last_active_date_v1';
+const THEME_KEY = 'taskati_theme_v1';
+const LANG_KEY = 'taskati_lang_v1';
 
 export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -46,16 +42,37 @@ export default function Home() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'completed' | 'spiritual' | 'learning'>('all');
   const [activeNav, setActiveNav] = useState<'dashboard' | 'tasks' | 'counter' | 'reading'>('dashboard');
 
+  // Theme & Language
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [language, setLanguage] = useState<Language>('en');
+
   // Modals state
   const [selectedCounterTask, setSelectedCounterTask] = useState<Task | null>(null);
   const [selectedReadingTask, setSelectedReadingTask] = useState<Task | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Initialize from LocalStorage
+  // Translations
+  const t = TRANSLATIONS[language];
+
+  // Initialize theme & language & tasks
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    // Load Theme
+    const savedTheme = (localStorage.getItem(THEME_KEY) as 'light' | 'dark') || 'light';
+    setTheme(savedTheme);
+    if (savedTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
+    // Load Language
+    const savedLang = (localStorage.getItem(LANG_KEY) as Language) || 'en';
+    setLanguage(savedLang);
+
+    // Load Tasks & Streak
     try {
       const todayStr = new Date().toISOString().split('T')[0];
       const savedDate = localStorage.getItem(LAST_DATE_KEY);
@@ -68,27 +85,36 @@ export default function Home() {
 
       if (savedTasks) {
         const parsed: Task[] = JSON.parse(savedTasks);
-        // Check if day changed
+        // Merge in malayalam translations for default tasks if missing
+        const merged = parsed.map((item) => {
+          const matchDefault = DEFAULT_TASKS.find((d) => d.id === item.id);
+          if (matchDefault) {
+            return {
+              ...item,
+              malayalamTitle: item.malayalamTitle || matchDefault.malayalamTitle,
+              malayalamSubtitle: item.malayalamSubtitle || matchDefault.malayalamSubtitle
+            };
+          }
+          return item;
+        });
+
         if (savedDate && savedDate !== todayStr) {
-          // New day rollover: reset completed status, retain all custom tasks & settings
-          const rolledOver = parsed.map((t) => ({
-            ...t,
+          const rolledOver = merged.map((tk) => ({
+            ...tk,
             completed: false,
-            counterCurrent: t.type === 'counter' ? 0 : t.counterCurrent,
-            readingDetails: t.readingDetails ? { ...t.readingDetails, minutesSpent: 0 } : undefined
+            counterCurrent: tk.type === 'counter' ? 0 : tk.counterCurrent,
+            readingDetails: tk.readingDetails ? { ...tk.readingDetails, minutesSpent: 0 } : undefined
           }));
           setTasks(rolledOver);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(rolledOver));
           localStorage.setItem(LAST_DATE_KEY, todayStr);
-          // Increment streak
           const newStreak = (parseInt(savedStreak || '1', 10) || 1) + 1;
           setStreak(newStreak);
           localStorage.setItem(STREAK_KEY, newStreak.toString());
         } else {
-          setTasks(parsed);
+          setTasks(merged);
         }
       } else {
-        // First run: load default 13 routines
         setTasks(DEFAULT_TASKS);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_TASKS));
         localStorage.setItem(LAST_DATE_KEY, todayStr);
@@ -99,7 +125,28 @@ export default function Home() {
     setIsLoaded(true);
   }, []);
 
-  // Save to LocalStorage whenever tasks update
+  // Toggle Theme
+  const toggleTheme = () => {
+    triggerHaptic([30]);
+    const nextTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(nextTheme);
+    localStorage.setItem(THEME_KEY, nextTheme);
+    if (nextTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
+  // Toggle Language
+  const toggleLanguage = () => {
+    triggerHaptic([30]);
+    const nextLang: Language = language === 'en' ? 'ml' : 'en';
+    setLanguage(nextLang);
+    localStorage.setItem(LANG_KEY, nextLang);
+  };
+
+  // Save to LocalStorage
   const saveTasks = (newTasks: Task[]) => {
     setTasks(newTasks);
     if (typeof window !== 'undefined') {
@@ -119,52 +166,53 @@ export default function Home() {
       const currentMins = String(now.getMinutes()).padStart(2, '0');
       const currentTimeStr = `${currentHours}:${currentMins}`;
 
-      tasks.forEach((t) => {
-        if (!t.completed && t.time === currentTimeStr) {
-          const notifiedKey = `notified_${t.id}_${new Date().toISOString().split('T')[0]}_${currentTimeStr}`;
+      tasks.forEach((item) => {
+        if (!item.completed && item.time === currentTimeStr) {
+          const notifiedKey = `notified_${item.id}_${new Date().toISOString().split('T')[0]}_${currentTimeStr}`;
           if (!sessionStorage.getItem(notifiedKey)) {
             sessionStorage.setItem(notifiedKey, 'true');
+            const alertTitle = language === 'ml' && item.malayalamTitle ? item.malayalamTitle : item.title;
             sendLocalNotification(
-              `⏰ Routine Reminder: ${t.title}`,
-              t.arabicTitle ? `${t.arabicTitle} - It's time for your scheduled routine.` : `It is ${t.time}. Time to complete ${t.title}!`
+              `⏰ ${t.todayRoutines}: ${alertTitle}`,
+              item.arabicTitle ? `${item.arabicTitle} - ${item.time}` : `${item.time} - ${alertTitle}`
             );
           }
         }
       });
-    }, 30000); // Check every 30 seconds
+    }, 30000);
 
     return () => clearInterval(interval);
-  }, [tasks]);
+  }, [tasks, language, t.todayRoutines]);
 
   // Toggle Completion
   const handleToggleTask = (taskId: string) => {
-    const updated = tasks.map((t) => {
-      if (t.id === taskId) {
-        const nextCompleted = !t.completed;
+    const updated = tasks.map((item) => {
+      if (item.id === taskId) {
+        const nextCompleted = !item.completed;
         return {
-          ...t,
+          ...item,
           completed: nextCompleted,
           completedAt: nextCompleted ? new Date().toISOString() : undefined,
-          counterCurrent: nextCompleted && t.type === 'counter' ? (t.counterTarget || 100) : t.counterCurrent
+          counterCurrent: nextCompleted && item.type === 'counter' ? (item.counterTarget || 100) : item.counterCurrent
         };
       }
-      return t;
+      return item;
     });
     saveTasks(updated);
   };
 
   // Update Dhikr Counter
   const handleUpdateCounter = (taskId: string, count: number, markCompleted = false) => {
-    const updated = tasks.map((t) => {
-      if (t.id === taskId) {
+    const updated = tasks.map((item) => {
+      if (item.id === taskId) {
         return {
-          ...t,
+          ...item,
           counterCurrent: count,
-          completed: markCompleted ? true : t.completed,
-          completedAt: markCompleted ? new Date().toISOString() : t.completedAt
+          completed: markCompleted ? true : item.completed,
+          completedAt: markCompleted ? new Date().toISOString() : item.completedAt
         };
       }
-      return t;
+      return item;
     });
     saveTasks(updated);
     if (selectedCounterTask && selectedCounterTask.id === taskId) {
@@ -178,16 +226,16 @@ export default function Home() {
 
   // Save Reading Options
   const handleSaveReading = (taskId: string, details: ReadingDetails, markCompleted: boolean) => {
-    const updated = tasks.map((t) => {
-      if (t.id === taskId) {
+    const updated = tasks.map((item) => {
+      if (item.id === taskId) {
         return {
-          ...t,
+          ...item,
           readingDetails: details,
-          completed: markCompleted ? true : t.completed,
-          completedAt: markCompleted ? new Date().toISOString() : t.completedAt
+          completed: markCompleted ? true : item.completed,
+          completedAt: markCompleted ? new Date().toISOString() : item.completedAt
         };
       }
-      return t;
+      return item;
     });
     saveTasks(updated);
   };
@@ -204,18 +252,21 @@ export default function Home() {
 
   // Delete Task
   const handleDeleteTask = (taskId: string) => {
-    saveTasks(tasks.filter((t) => t.id !== taskId));
+    saveTasks(tasks.filter((item) => item.id !== taskId));
     triggerHaptic([30]);
   };
 
   // Reset Today's Tasks
   const handleResetDay = () => {
-    if (confirm("Reset all tasks for today? Your routines and streaks will be maintained.")) {
-      const reset = tasks.map((t) => ({
-        ...t,
+    const confirmMsg = language === 'ml'
+      ? 'ഇന്നത്തെ ദിനചര്യകൾ പുനഃക്രമീകരിക്കണോ? പഴയ ശീലങ്ങളും സ്ട്രീക്കും നിലനിൽക്കും.'
+      : 'Reset all tasks for today? Your routines and streaks will be maintained.';
+    if (confirm(confirmMsg)) {
+      const reset = tasks.map((item) => ({
+        ...item,
         completed: false,
-        counterCurrent: t.type === 'counter' ? 0 : t.counterCurrent,
-        readingDetails: t.readingDetails ? { ...t.readingDetails, minutesSpent: 0 } : undefined
+        counterCurrent: item.type === 'counter' ? 0 : item.counterCurrent,
+        readingDetails: item.readingDetails ? { ...item.readingDetails, minutesSpent: 0 } : undefined
       }));
       saveTasks(reset);
       triggerHaptic([50, 50]);
@@ -225,15 +276,14 @@ export default function Home() {
   // Filtered Tasks
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
-      // Search
       const matchesSearch =
         task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (task.subtitle && task.subtitle.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (task.malayalamTitle && task.malayalamTitle.includes(searchQuery)) ||
         (task.arabicTitle && task.arabicTitle.includes(searchQuery));
 
       if (!matchesSearch) return false;
 
-      // Filter tabs
       if (activeFilter === 'pending') return !task.completed;
       if (activeFilter === 'completed') return task.completed;
       if (activeFilter === 'spiritual') return task.category === 'spiritual';
@@ -242,17 +292,15 @@ export default function Home() {
     });
   }, [tasks, searchQuery, activeFilter]);
 
-  // Statistics
   const totalCount = tasks.length;
-  const completedCount = tasks.filter((t) => t.completed).length;
+  const completedCount = tasks.filter((item) => item.completed).length;
   const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-  // Next up task
   const nextUpTask = useMemo(() => {
-    return tasks.find((t) => !t.completed);
+    return tasks.find((item) => !item.completed);
   }, [tasks]);
 
-  const dateFormatted = new Date().toLocaleDateString('en-US', {
+  const dateFormatted = new Date().toLocaleDateString(language === 'ml' ? 'ml-IN' : 'en-US', {
     weekday: 'long',
     day: 'numeric',
     month: 'short',
@@ -260,15 +308,15 @@ export default function Home() {
   });
 
   return (
-    <div className="min-h-screen bg-taskati-bg text-taskati-text flex flex-col lg:flex-row pb-24 lg:pb-8">
+    <div className="min-h-screen bg-taskati-bg dark:bg-[#0D1021] text-taskati-text dark:text-gray-100 flex flex-col lg:flex-row pb-24 lg:pb-8 transition-colors duration-200">
       {/* ======================================================== */}
       {/* DESKTOP SIDEBAR (Taskati Style)                          */}
       {/* ======================================================== */}
-      <aside className="hidden lg:flex flex-col w-64 bg-white border-r border-taskati-border p-6 justify-between flex-shrink-0">
+      <aside className="hidden lg:flex flex-col w-64 bg-white dark:bg-[#14182E] border-r border-taskati-border dark:border-white/10 p-6 justify-between flex-shrink-0">
         <div>
           {/* Logo */}
           <div className="flex items-center gap-2 mb-8 px-2">
-            <h1 className="text-2xl font-black text-taskati-navy tracking-tight flex items-center">
+            <h1 className="text-2xl font-black text-taskati-navy dark:text-white tracking-tight flex items-center">
               Taskati<span className="text-taskati-blue">.</span>
             </h1>
           </div>
@@ -280,11 +328,11 @@ export default function Home() {
               className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
                 activeNav === 'dashboard'
                   ? 'bg-taskati-blue text-white shadow-taskati'
-                  : 'text-taskati-muted hover:text-taskati-navy hover:bg-taskati-bg'
+                  : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white hover:bg-taskati-bg dark:hover:bg-white/5'
               }`}
             >
               <LayoutDashboard className="w-4 h-4" />
-              <span>Dashboard</span>
+              <span>{t.dashboard}</span>
             </button>
 
             <button
@@ -292,54 +340,54 @@ export default function Home() {
               className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
                 activeNav === 'tasks'
                   ? 'bg-taskati-blue text-white shadow-taskati'
-                  : 'text-taskati-muted hover:text-taskati-navy hover:bg-taskati-bg'
+                  : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white hover:bg-taskati-bg dark:hover:bg-white/5'
               }`}
             >
               <CheckSquare className="w-4 h-4" />
-              <span>Daily Tasks</span>
-              <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] bg-taskati-blue-light text-taskati-blue">
+              <span>{t.dailyTasks}</span>
+              <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] bg-taskati-blue-light dark:bg-white/10 text-taskati-blue dark:text-taskati-blue-light">
                 {totalCount}
               </span>
             </button>
 
             <button
               onClick={() => {
-                const counterTask = tasks.find((t) => t.type === 'counter');
+                const counterTask = tasks.find((item) => item.type === 'counter');
                 if (counterTask) setSelectedCounterTask(counterTask);
               }}
-              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold text-taskati-muted hover:text-taskati-navy hover:bg-taskati-bg transition-all"
+              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white hover:bg-taskati-bg dark:hover:bg-white/5 transition-all"
             >
               <Hash className="w-4 h-4 text-taskati-pink" />
-              <span>100x Dhikr Counter</span>
+              <span>{t.dhikrCounter}</span>
             </button>
 
             <button
               onClick={() => {
-                const readTask = tasks.find((t) => t.type === 'reading');
+                const readTask = tasks.find((item) => item.type === 'reading');
                 if (readTask) setSelectedReadingTask(readTask);
               }}
-              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold text-taskati-muted hover:text-taskati-navy hover:bg-taskati-bg transition-all"
+              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white hover:bg-taskati-bg dark:hover:bg-white/5 transition-all"
             >
               <BookOpen className="w-4 h-4 text-taskati-purple" />
-              <span>Daily Reading Hub</span>
+              <span>{t.readingHub}</span>
             </button>
           </nav>
         </div>
 
-        {/* Taskati Pro / Routine Badge Card */}
+        {/* Taskati Pro Card */}
         <div className="bg-gradient-to-br from-taskati-blue to-taskati-blue-hover text-white rounded-3xl p-5 shadow-taskati-float relative overflow-hidden">
           <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center font-black text-sm mb-3">
             T.
           </div>
-          <h4 className="text-sm font-bold">Daily Routine PWA</h4>
+          <h4 className="text-sm font-bold">{t.appName} Pro</h4>
           <p className="text-[11px] text-white/80 mt-1 mb-3">
-            Track Dhikr, Quran, English & Reading with local safety
+            {language === 'ml' ? 'ദിക്റുകളും ദിനചര്യകളും ലളിതമായി' : 'Track Dhikr, Quran, English & Reading with local safety'}
           </p>
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="w-full py-2 bg-white text-taskati-blue font-bold rounded-2xl text-xs shadow-sm hover:bg-white/95 transition-all"
           >
-            + Add New Task
+            + {t.addTask}
           </button>
         </div>
       </aside>
@@ -348,7 +396,7 @@ export default function Home() {
       {/* MAIN CONTENT AREA                                        */}
       {/* ======================================================== */}
       <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-6 lg:p-8 space-y-6">
-        {/* Top Header Row (Taskati style) */}
+        {/* Top Header Row */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center justify-between lg:justify-start gap-3">
             {/* Mobile Logo */}
@@ -356,46 +404,65 @@ export default function Home() {
               <span className="w-8 h-8 rounded-xl bg-taskati-blue text-white flex items-center justify-center font-black text-sm shadow-sm">
                 T.
               </span>
-              <h2 className="text-xl font-black text-taskati-navy">Taskati.</h2>
+              <h2 className="text-xl font-black text-taskati-navy dark:text-white">Taskati.</h2>
             </div>
 
             <div>
-              <p className="text-xs font-bold text-taskati-muted uppercase tracking-wider">
+              <p className="text-xs font-bold text-taskati-muted dark:text-gray-400 uppercase tracking-wider">
                 {dateFormatted}
               </p>
-              <h2 className="text-lg md:text-xl font-black text-taskati-navy">
-                Assalamu Alaikum 👋
+              <h2 className="text-lg md:text-xl font-black text-taskati-navy dark:text-white">
+                {t.greeting}
               </h2>
             </div>
           </div>
 
           {/* Search Bar & Actions */}
-          <div className="flex items-center gap-2.5">
-            <div className="relative flex-1 sm:w-64">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 sm:w-56">
               <Search className="w-4 h-4 text-taskati-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search daily routine..."
-                className="w-full pl-9 pr-4 py-2 rounded-2xl bg-white border border-taskati-border text-xs text-taskati-navy placeholder-taskati-muted focus:outline-none focus:border-taskati-blue shadow-taskati-card font-medium"
+                placeholder={t.searchPlaceholder}
+                className="w-full pl-9 pr-4 py-2 rounded-2xl bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 text-xs text-taskati-navy dark:text-white placeholder-taskati-muted focus:outline-none focus:border-taskati-blue shadow-taskati-card font-medium"
               />
             </div>
 
-            {/* Language & Streak pill */}
-            <div className="flex items-center gap-1.5 px-3 py-2 bg-white border border-taskati-border rounded-2xl shadow-taskati-card text-xs font-bold text-taskati-navy flex-shrink-0">
+            {/* Language Toggle Button (English <-> Malayalam) */}
+            <button
+              onClick={toggleLanguage}
+              className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 rounded-2xl shadow-taskati-card text-xs font-bold text-taskati-navy dark:text-white hover:border-taskati-blue transition-all"
+              title="Toggle English / Malayalam"
+            >
+              <Globe className="w-3.5 h-3.5 text-taskati-blue" />
+              <span>{language === 'en' ? 'മലയാളം' : 'English'}</span>
+            </button>
+
+            {/* Dark / Light Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-2.5 bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 rounded-2xl shadow-taskati-card text-taskati-navy dark:text-amber-400 hover:border-taskati-blue transition-all"
+              title={theme === 'dark' ? 'Switch to Normal Light Theme' : 'Switch to Dark Theme'}
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4 text-taskati-navy" />}
+            </button>
+
+            {/* Streak pill */}
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 rounded-2xl shadow-taskati-card text-xs font-bold text-taskati-navy dark:text-white flex-shrink-0">
               <Flame className="w-4 h-4 text-amber-500 fill-amber-500" />
-              <span>{streak} Day Streak</span>
+              <span>{streak} {t.streak}</span>
             </div>
 
             {/* Add Task Button */}
             <button
               onClick={() => setIsAddModalOpen(true)}
               className="p-2.5 sm:px-4 sm:py-2 rounded-2xl bg-taskati-blue text-white text-xs font-bold shadow-taskati hover:bg-taskati-blue-hover transition-all flex items-center gap-1.5 flex-shrink-0"
-              title="Add New Routine"
+              title={t.addTask}
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Add Task</span>
+              <span className="hidden sm:inline">{t.addTask}</span>
             </button>
           </div>
         </header>
@@ -410,26 +477,26 @@ export default function Home() {
         {/* DASHBOARD TOP WIDGETS (Habits Summary & Progress Ring)   */}
         {/* ======================================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Habits Row (2 cols on large screen) */}
+          {/* Main Habits Row */}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-taskati-navy">Daily Habit Focus</h3>
+              <h3 className="text-sm font-bold text-taskati-navy dark:text-white">{t.dailyHabitFocus}</h3>
               <button
                 onClick={handleResetDay}
-                className="text-xs font-semibold text-taskati-muted hover:text-taskati-blue flex items-center gap-1"
+                className="text-xs font-semibold text-taskati-muted dark:text-gray-400 hover:text-taskati-blue flex items-center gap-1"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                Reset Day
+                {t.resetDay}
               </button>
             </div>
 
-            {/* 4 Colored Squircle Tiles (Exact Taskati Layout) */}
+            {/* 4 Colored Squircle Tiles */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {/* Tile 1: Dhikr */}
               <button
                 onClick={() => {
-                  const t = tasks.find((item) => item.type === 'counter');
-                  if (t) setSelectedCounterTask(t);
+                  const item = tasks.find((tk) => tk.type === 'counter');
+                  if (item) setSelectedCounterTask(item);
                 }}
                 className="p-4 rounded-3xl bg-taskati-purple text-white shadow-taskati-card text-left transition-transform active:scale-95 hover:shadow-taskati relative overflow-hidden"
               >
@@ -437,8 +504,10 @@ export default function Home() {
                   <Hash className="w-4 h-4" />
                 </div>
                 <div className="text-2xl font-black">300</div>
-                <div className="text-[11px] text-white/80 font-medium">Dhikr Daily</div>
-                <div className="text-[9px] text-white/60 mt-0.5">Isthigfar, Thasbeeh, Swalath</div>
+                <div className="text-[11px] text-white/90 font-bold">{t.dhikrDaily}</div>
+                <div className="text-[9px] text-white/70 mt-0.5 truncate">
+                  {language === 'ml' ? 'ഇസ്തിഗ്ഫാർ, തസ്ബീഹ്, സ്വലാത്ത്' : 'Isthigfar, Thasbeeh, Swalath'}
+                </div>
               </button>
 
               {/* Tile 2: Quran / Qiraath */}
@@ -446,9 +515,11 @@ export default function Home() {
                 <div className="w-8 h-8 rounded-2xl bg-white/20 flex items-center justify-center mb-2">
                   <Sparkles className="w-4 h-4" />
                 </div>
-                <div className="text-2xl font-black">4 Surahs</div>
-                <div className="text-[11px] text-white/80 font-medium">Quran Tilawat</div>
-                <div className="text-[9px] text-white/60 mt-0.5">Yaseen, Mulk, Fathiha</div>
+                <div className="text-2xl font-black">4 {t.surahs}</div>
+                <div className="text-[11px] text-white/90 font-bold">{t.quranTilawat}</div>
+                <div className="text-[9px] text-white/70 mt-0.5 truncate">
+                  {language === 'ml' ? 'യാസീൻ, മുൽക്, ഖിറാഅത്ത്' : 'Yaseen, Mulk, Fathiha'}
+                </div>
               </div>
 
               {/* Tile 3: Reading */}
@@ -463,8 +534,8 @@ export default function Home() {
                   <BookOpen className="w-4 h-4" />
                 </div>
                 <div className="text-2xl font-black">25 m</div>
-                <div className="text-[11px] text-white/80 font-medium">Daily Reading</div>
-                <div className="text-[9px] text-white/60 mt-0.5">Tap for Options & Timer</div>
+                <div className="text-[11px] text-white/90 font-bold">{t.dailyReading}</div>
+                <div className="text-[9px] text-white/70 mt-0.5 truncate">{t.tapForOptions}</div>
               </button>
 
               {/* Tile 4: English Language */}
@@ -472,24 +543,28 @@ export default function Home() {
                 <div className="w-8 h-8 rounded-2xl bg-white/20 flex items-center justify-center mb-2">
                   <Headphones className="w-4 h-4" />
                 </div>
-                <div className="text-2xl font-black">2 Skills</div>
-                <div className="text-[11px] text-white/80 font-medium">English Habits</div>
-                <div className="text-[9px] text-white/60 mt-0.5">Listening & Speaking</div>
+                <div className="text-2xl font-black">2 {t.skills}</div>
+                <div className="text-[11px] text-white/90 font-bold">{t.englishHabits}</div>
+                <div className="text-[9px] text-white/70 mt-0.5 truncate">
+                  {language === 'ml' ? 'കേൾക്കൽ & സംസാരിക്കൽ' : 'Listening & Speaking'}
+                </div>
               </div>
             </div>
 
             {/* Next Up Routine Card */}
             {nextUpTask && (
-              <div className="p-4 bg-white rounded-3xl border border-taskati-border shadow-taskati-card flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="w-10 h-10 rounded-2xl bg-taskati-blue-light text-taskati-blue flex items-center justify-center flex-shrink-0">
+              <div className="p-4 bg-white dark:bg-[#181C33] rounded-3xl border border-taskati-border dark:border-white/10 shadow-taskati-card flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="w-10 h-10 rounded-2xl bg-taskati-blue-light dark:bg-taskati-blue/20 text-taskati-blue flex items-center justify-center flex-shrink-0">
                     <Clock className="w-5 h-5" />
                   </span>
-                  <div>
+                  <div className="truncate">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-taskati-pink">
-                      Next Scheduled Task
+                      {t.nextScheduledTask}
                     </span>
-                    <h4 className="text-sm font-bold text-taskati-navy">{nextUpTask.title}</h4>
+                    <h4 className="text-sm font-bold text-taskati-navy dark:text-white truncate">
+                      {language === 'ml' && nextUpTask.malayalamTitle ? nextUpTask.malayalamTitle : nextUpTask.title}
+                    </h4>
                     {nextUpTask.arabicTitle && (
                       <p className="text-xs text-taskati-purple font-serif">{nextUpTask.arabicTitle}</p>
                     )}
@@ -501,15 +576,17 @@ export default function Home() {
                   className="px-4 py-2 rounded-2xl bg-taskati-blue text-white text-xs font-bold shadow-taskati hover:bg-taskati-blue-hover transition-all flex items-center gap-1.5 flex-shrink-0"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  Complete Now
+                  <span>{t.completeNow}</span>
                 </button>
               </div>
             )}
           </div>
 
-          {/* Daily Progress Donut Card (Taskati Right Widget) */}
-          <div className="bg-white rounded-4xl p-6 border border-taskati-border shadow-taskati-card flex flex-col items-center justify-center text-center">
-            <h3 className="text-sm font-bold text-taskati-navy mb-4 self-start">Daily Progress</h3>
+          {/* Daily Progress Donut Card */}
+          <div className="bg-white dark:bg-[#181C33] rounded-4xl p-6 border border-taskati-border dark:border-white/10 shadow-taskati-card flex flex-col items-center justify-center text-center">
+            <h3 className="text-sm font-bold text-taskati-navy dark:text-white mb-4 self-start">
+              {t.dailyProgress}
+            </h3>
 
             {/* Circular Progress Ring */}
             <div className="relative w-44 h-44 my-2 flex items-center justify-center">
@@ -518,7 +595,7 @@ export default function Home() {
                   cx="50"
                   cy="50"
                   r="40"
-                  stroke="#E8ECF5"
+                  stroke={theme === 'dark' ? '#2A3052' : '#E8ECF5'}
                   strokeWidth="8"
                   fill="transparent"
                 />
@@ -544,30 +621,30 @@ export default function Home() {
               </svg>
 
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-4xl font-black text-taskati-navy tracking-tight">{percentage}%</span>
-                <span className="text-[11px] font-semibold text-taskati-muted mt-0.5">
-                  {completedCount} of {totalCount} Done
+                <span className="text-4xl font-black text-taskati-navy dark:text-white tracking-tight">{percentage}%</span>
+                <span className="text-[11px] font-semibold text-taskati-muted dark:text-gray-400 mt-0.5">
+                  {completedCount} / {totalCount} {t.doneOf}
                 </span>
               </div>
             </div>
 
             {/* Category breakdown pills */}
-            <div className="grid grid-cols-2 gap-2 w-full mt-4 text-[11px] font-semibold">
-              <div className="flex items-center gap-1.5 text-taskati-navy">
+            <div className="grid grid-cols-2 gap-2 w-full mt-4 text-[11px] font-semibold text-taskati-navy dark:text-gray-300">
+              <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-taskati-blue" />
-                <span>Spiritual (9)</span>
+                <span>{language === 'ml' ? 'ആത്മീയ (9)' : 'Spiritual (9)'}</span>
               </div>
-              <div className="flex items-center gap-1.5 text-taskati-navy">
+              <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-taskati-pink" />
-                <span>Dhikr 100x (3)</span>
+                <span>{language === 'ml' ? 'ദിക്റുകൾ (3)' : 'Dhikr 100x (3)'}</span>
               </div>
-              <div className="flex items-center gap-1.5 text-taskati-navy">
+              <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-taskati-purple" />
-                <span>English (2)</span>
+                <span>{language === 'ml' ? 'ഇംഗ്ലീഷ് (2)' : 'English (2)'}</span>
               </div>
-              <div className="flex items-center gap-1.5 text-taskati-navy">
+              <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                <span>Reading (1)</span>
+                <span>{language === 'ml' ? 'വായന (1)' : 'Reading (1)'}</span>
               </div>
             </div>
           </div>
@@ -577,26 +654,26 @@ export default function Home() {
         {/* TASK LIST & TIMELINE SECTION                             */}
         {/* ======================================================== */}
         <section className="space-y-4">
-          {/* Header & Filter Tabs (Pill Style from Image) */}
+          {/* Header & Filter Tabs */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-bold text-taskati-navy">Today's Daily Routines</h3>
-              <p className="text-xs text-taskati-muted">
-                Track and check off your spiritual, dhikr & study goals
+              <h3 className="text-base font-bold text-taskati-navy dark:text-white">{t.todayRoutines}</h3>
+              <p className="text-xs text-taskati-muted dark:text-gray-400">
+                {t.routinesDesc}
               </p>
             </div>
 
             {/* Filter Pills */}
-            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-white border border-taskati-border rounded-2xl shadow-taskati-card">
+            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 rounded-2xl shadow-taskati-card">
               <button
                 onClick={() => setActiveFilter('all')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   activeFilter === 'all'
                     ? 'bg-taskati-blue text-white shadow-sm'
-                    : 'text-taskati-muted hover:text-taskati-navy'
+                    : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white'
                 }`}
               >
-                All ({tasks.length})
+                {t.all} ({tasks.length})
               </button>
 
               <button
@@ -604,10 +681,10 @@ export default function Home() {
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   activeFilter === 'pending'
                     ? 'bg-taskati-blue text-white shadow-sm'
-                    : 'text-taskati-muted hover:text-taskati-navy'
+                    : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white'
                 }`}
               >
-                Pending ({totalCount - completedCount})
+                {t.pending} ({totalCount - completedCount})
               </button>
 
               <button
@@ -615,10 +692,10 @@ export default function Home() {
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   activeFilter === 'completed'
                     ? 'bg-taskati-blue text-white shadow-sm'
-                    : 'text-taskati-muted hover:text-taskati-navy'
+                    : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white'
                 }`}
               >
-                Done ({completedCount})
+                {t.completed} ({completedCount})
               </button>
 
               <button
@@ -626,10 +703,10 @@ export default function Home() {
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   activeFilter === 'spiritual'
                     ? 'bg-taskati-blue text-white shadow-sm'
-                    : 'text-taskati-muted hover:text-taskati-navy'
+                    : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white'
                 }`}
               >
-                Dhikr & Quran
+                {t.dhikrAndQuran}
               </button>
 
               <button
@@ -637,10 +714,10 @@ export default function Home() {
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   activeFilter === 'learning'
                     ? 'bg-taskati-blue text-white shadow-sm'
-                    : 'text-taskati-muted hover:text-taskati-navy'
+                    : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white'
                 }`}
               >
-                English & Reading
+                {t.englishAndReading}
               </button>
             </div>
           </div>
@@ -648,14 +725,18 @@ export default function Home() {
           {/* Task Cards Grid / List */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             {filteredTasks.length === 0 ? (
-              <div className="col-span-full py-12 text-center bg-white rounded-3xl border border-taskati-border">
-                <p className="text-sm font-bold text-taskati-navy mb-1">No tasks found</p>
-                <p className="text-xs text-taskati-muted mb-4">Try clearing your search query or filter</p>
+              <div className="col-span-full py-12 text-center bg-white dark:bg-[#181C33] rounded-3xl border border-taskati-border dark:border-white/10">
+                <p className="text-sm font-bold text-taskati-navy dark:text-white mb-1">
+                  {language === 'ml' ? 'ദിനചര്യകൾ ഒന്നും കണ്ടെത്തിയില്ല' : 'No tasks found'}
+                </p>
+                <p className="text-xs text-taskati-muted dark:text-gray-400 mb-4">
+                  {language === 'ml' ? 'ഫിൽട്ടറോ തിരയലോ മാറ്റുക' : 'Try clearing your search query or filter'}
+                </p>
                 <button
                   onClick={() => { setSearchQuery(''); setActiveFilter('all'); }}
                   className="px-4 py-2 bg-taskati-blue text-white text-xs font-bold rounded-2xl shadow-taskati"
                 >
-                  Show All Tasks
+                  {language === 'ml' ? 'എല്ലാ ദിനചര്യകളും കാണുക' : 'Show All Tasks'}
                 </button>
               </div>
             ) : (
@@ -663,9 +744,10 @@ export default function Home() {
                 <TaskCard
                   key={task.id}
                   task={task}
+                  language={language}
                   onToggle={handleToggleTask}
-                  onOpenCounter={(t) => setSelectedCounterTask(t)}
-                  onOpenReading={(t) => setSelectedReadingTask(t)}
+                  onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+                  onOpenReading={(tk) => setSelectedReadingTask(tk)}
                   onDelete={handleDeleteTask}
                 />
               ))
@@ -677,26 +759,26 @@ export default function Home() {
       {/* ======================================================== */}
       {/* MOBILE BOTTOM NAVIGATION BAR                             */}
       {/* ======================================================== */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-taskati-border px-6 py-2.5 flex items-center justify-around shadow-lg">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#14182E]/95 backdrop-blur-md border-t border-taskati-border dark:border-white/10 px-6 py-2.5 flex items-center justify-around shadow-lg">
         <button
           onClick={() => { setActiveNav('dashboard'); setActiveFilter('all'); }}
           className={`flex flex-col items-center gap-1 text-xs font-bold ${
-            activeNav === 'dashboard' ? 'text-taskati-blue' : 'text-taskati-muted'
+            activeNav === 'dashboard' ? 'text-taskati-blue' : 'text-taskati-muted dark:text-gray-400'
           }`}
         >
           <LayoutDashboard className="w-5 h-5" />
-          <span>Home</span>
+          <span>{t.home}</span>
         </button>
 
         <button
           onClick={() => {
-            const counterTask = tasks.find((t) => t.type === 'counter');
+            const counterTask = tasks.find((tk) => tk.type === 'counter');
             if (counterTask) setSelectedCounterTask(counterTask);
           }}
-          className="flex flex-col items-center gap-1 text-xs font-bold text-taskati-muted hover:text-taskati-pink"
+          className="flex flex-col items-center gap-1 text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-taskati-pink"
         >
           <Hash className="w-5 h-5 text-taskati-pink" />
-          <span>Counter</span>
+          <span>{t.counter}</span>
         </button>
 
         {/* Center Floating Plus */}
@@ -709,23 +791,23 @@ export default function Home() {
 
         <button
           onClick={() => {
-            const readTask = tasks.find((t) => t.type === 'reading');
+            const readTask = tasks.find((tk) => tk.type === 'reading');
             if (readTask) setSelectedReadingTask(readTask);
           }}
-          className="flex flex-col items-center gap-1 text-xs font-bold text-taskati-muted hover:text-taskati-purple"
+          className="flex flex-col items-center gap-1 text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-taskati-purple"
         >
           <BookOpen className="w-5 h-5 text-taskati-purple" />
-          <span>Reading</span>
+          <span>{t.reading}</span>
         </button>
 
         <button
           onClick={() => { setActiveNav('tasks'); setActiveFilter('pending'); }}
           className={`flex flex-col items-center gap-1 text-xs font-bold ${
-            activeNav === 'tasks' ? 'text-taskati-blue' : 'text-taskati-muted'
+            activeNav === 'tasks' ? 'text-taskati-blue' : 'text-taskati-muted dark:text-gray-400'
           }`}
         >
           <CheckSquare className="w-5 h-5" />
-          <span>Pending</span>
+          <span>{t.pending}</span>
         </button>
       </nav>
 

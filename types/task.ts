@@ -17,6 +17,8 @@ export interface Task {
   title: string;
   subtitle?: string;
   arabicTitle?: string;
+  malayalamTitle?: string;
+  malayalamSubtitle?: string;
   time: string; // 24-hr format "HH:mm" e.g. "05:30", "18:45"
   period?: 'fajr' | 'morning' | 'afternoon' | 'evening' | 'night';
   completed: boolean;
