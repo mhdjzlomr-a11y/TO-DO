@@ -3,14 +3,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Task, TaskCategory, ReadingDetails } from '@/types/task';
 import { DEFAULT_TASKS } from '@/lib/defaultTasks';
-import { sendLocalNotification, triggerHaptic } from '@/lib/notifications';
+import { sendLocalNotification, triggerHaptic, playChimeSound } from '@/lib/notifications';
 import { Language, TRANSLATIONS } from '@/lib/translations';
+import {
+  generateCompletedReport,
+  generatePendingReport,
+  openWhatsApp
+} from '@/lib/whatsappHelper';
 import TaskCard from '@/components/TaskCard';
 import DhikrModal from '@/components/DhikrModal';
 import ReadingOptionsModal from '@/components/ReadingOptionsModal';
 import AddTaskModal from '@/components/AddTaskModal';
 import NotificationBanner from '@/components/NotificationBanner';
 import InstallPwaPrompt from '@/components/InstallPwaPrompt';
+import PhoneNotificationModal from '@/components/PhoneNotificationModal';
 import {
   Search,
   Plus,
@@ -26,7 +32,14 @@ import {
   Headphones,
   Moon,
   Sun,
-  Globe
+  Globe,
+  Phone,
+  Smartphone,
+  MessageSquare,
+  BellRing,
+  X,
+  Send,
+  AlertTriangle
 } from 'lucide-react';
 
 const STORAGE_KEY = 'taskati_daily_tasks_v1';
@@ -34,6 +47,7 @@ const STREAK_KEY = 'taskati_daily_streak_v1';
 const LAST_DATE_KEY = 'taskati_last_active_date_v1';
 const THEME_KEY = 'taskati_theme_v1';
 const LANG_KEY = 'taskati_lang_v1';
+const PHONE_KEY = 'taskati_saved_phone_number_v1';
 
 export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -44,16 +58,32 @@ export default function Home() {
 
   // Theme & Language
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [language, setLanguage] = useState<Language>('en');
+  const [language, setLanguage] = useState<Language>('ml'); // Default to Malayalam as requested!
 
   // Modals state
   const [selectedCounterTask, setSelectedCounterTask] = useState<Task | null>(null);
   const [selectedReadingTask, setSelectedReadingTask] = useState<Task | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
+  const [activeToast, setActiveToast] = useState<{ title: string; body: string } | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Translations
   const t = TRANSLATIONS[language];
+
+  // In-app alert toast listener
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleToast = (e: Event) => {
+      const customEvent = e as CustomEvent<{ title: string; body: string }>;
+      if (customEvent.detail) {
+        setActiveToast(customEvent.detail);
+        setTimeout(() => setActiveToast(null), 6000);
+      }
+    };
+    window.addEventListener('taskati-alert', handleToast);
+    return () => window.removeEventListener('taskati-alert', handleToast);
+  }, []);
 
   // Initialize theme & language & tasks
   useEffect(() => {
@@ -68,8 +98,8 @@ export default function Home() {
       document.documentElement.classList.remove('dark');
     }
 
-    // Load Language
-    const savedLang = (localStorage.getItem(LANG_KEY) as Language) || 'en';
+    // Load Language (defaults to ml)
+    const savedLang = (localStorage.getItem(LANG_KEY) as Language) || 'ml';
     setLanguage(savedLang);
 
     // Load Tasks & Streak
@@ -273,6 +303,27 @@ export default function Home() {
     }
   };
 
+  // Quick WhatsApp send helpers
+  const handleQuickSendCompleted = () => {
+    const phone = localStorage.getItem(PHONE_KEY) || '';
+    if (!phone) {
+      setIsPhoneModalOpen(true);
+    } else {
+      triggerHaptic([40]);
+      openWhatsApp(phone, generateCompletedReport(tasks, language, streak));
+    }
+  };
+
+  const handleQuickSendPending = () => {
+    const phone = localStorage.getItem(PHONE_KEY) || '';
+    if (!phone) {
+      setIsPhoneModalOpen(true);
+    } else {
+      triggerHaptic([40]);
+      openWhatsApp(phone, generatePendingReport(tasks, language));
+    }
+  };
+
   // Filtered Tasks
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
@@ -294,6 +345,7 @@ export default function Home() {
 
   const totalCount = tasks.length;
   const completedCount = tasks.filter((item) => item.completed).length;
+  const pendingCount = totalCount - completedCount;
   const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   const nextUpTask = useMemo(() => {
@@ -309,6 +361,29 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-taskati-bg dark:bg-[#0D1021] text-taskati-text dark:text-gray-100 flex flex-col lg:flex-row pb-24 lg:pb-8 transition-colors duration-200">
+      {/* Floating In-App Alert Toast Banner */}
+      {activeToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-pop">
+          <div className="bg-taskati-navy dark:bg-taskati-blue text-white rounded-3xl p-4 shadow-taskati-float flex items-center justify-between gap-3 border border-white/20">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="w-9 h-9 rounded-2xl bg-white/20 flex items-center justify-center flex-shrink-0 animate-bounce">
+                <BellRing className="w-5 h-5 text-amber-300" />
+              </span>
+              <div className="truncate">
+                <h4 className="text-xs font-bold truncate">{activeToast.title}</h4>
+                <p className="text-[11px] text-white/80 truncate">{activeToast.body}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setActiveToast(null)}
+              className="p-1.5 rounded-full hover:bg-white/20 text-white/70 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ======================================================== */}
       {/* DESKTOP SIDEBAR (Taskati Style)                          */}
       {/* ======================================================== */}
@@ -348,6 +423,15 @@ export default function Home() {
               <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] bg-taskati-blue-light dark:bg-white/10 text-taskati-blue dark:text-taskati-blue-light">
                 {totalCount}
               </span>
+            </button>
+
+            {/* Phone & WhatsApp Notifications in Sidebar */}
+            <button
+              onClick={() => setIsPhoneModalOpen(true)}
+              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 transition-all border border-emerald-200 dark:border-emerald-800/40"
+            >
+              <Phone className="w-4 h-4" />
+              <span>{language === 'ml' ? 'ഫോൺ നമ്പർ അലർട്ട്' : 'Phone Alerts'}</span>
             </button>
 
             <button
@@ -419,7 +503,7 @@ export default function Home() {
 
           {/* Search Bar & Actions */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 sm:w-56">
+            <div className="relative flex-1 sm:w-52">
               <Search className="w-4 h-4 text-taskati-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -430,7 +514,17 @@ export default function Home() {
               />
             </div>
 
-            {/* Language Toggle Button (English <-> Malayalam) */}
+            {/* Dedicated Phone & WhatsApp Button */}
+            <button
+              onClick={() => setIsPhoneModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-2xl shadow-taskati-card text-xs font-bold hover:bg-emerald-100 transition-all active:scale-95 flex-shrink-0"
+              title="Add Phone Number & WhatsApp alerts"
+            >
+              <Phone className="w-3.5 h-3.5" />
+              <span>{language === 'ml' ? 'ഫോൺ നമ്പർ' : 'Phone'}</span>
+            </button>
+
+            {/* Language Toggle Button */}
             <button
               onClick={toggleLanguage}
               className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 rounded-2xl shadow-taskati-card text-xs font-bold text-taskati-navy dark:text-white hover:border-taskati-blue transition-all"
@@ -444,7 +538,7 @@ export default function Home() {
             <button
               onClick={toggleTheme}
               className="p-2.5 bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 rounded-2xl shadow-taskati-card text-taskati-navy dark:text-amber-400 hover:border-taskati-blue transition-all"
-              title={theme === 'dark' ? 'Switch to Normal Light Theme' : 'Switch to Dark Theme'}
+              title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4 text-taskati-navy" />}
             </button>
@@ -471,7 +565,65 @@ export default function Home() {
         <InstallPwaPrompt />
 
         {/* Push Notification Status Banner */}
-        <NotificationBanner />
+        <NotificationBanner language={language} />
+
+        {/* ======================================================== */}
+        {/* PHONE NOTIFICATION QUICK DISPATCH CARD                   */}
+        {/* ======================================================== */}
+        <div className="p-4 rounded-3xl bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 shadow-taskati-card flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+              <Smartphone className="w-5 h-5" />
+            </span>
+            <div>
+              <h4 className="text-sm font-bold text-taskati-navy dark:text-white">
+                {language === 'ml' ? 'ഫോണിലേക്ക് പ്രത്യേക റിപ്പോർട്ടുകൾ അയക്കുക' : 'Send Phone & WhatsApp Reports'}
+              </h4>
+              <p className="text-xs text-taskati-muted dark:text-gray-400">
+                {language === 'ml'
+                  ? 'പൂർത്തിയായ ദിനചര്യകളും പൂർത്തിയാവാത്തവയും വേറെ വേറെ സന്ദേശമായി അയക്കാം'
+                  : 'Separate notifications for completed tasks and incomplete reminders'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Completed Notice Button */}
+            <button
+              onClick={handleQuickSendCompleted}
+              className="px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>
+                {language === 'ml'
+                  ? `പൂർത്തിയായവ (${completedCount}) WhatsApp`
+                  : `Completed (${completedCount})`}
+              </span>
+            </button>
+
+            {/* Pending Notice Button */}
+            <button
+              onClick={handleQuickSendPending}
+              className="px-3.5 py-2 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
+            >
+              <AlertTriangle className="w-4 h-4" />
+              <span>
+                {language === 'ml'
+                  ? `ബാക്കിയുള്ളവ (${pendingCount}) WhatsApp`
+                  : `Pending (${pendingCount})`}
+              </span>
+            </button>
+
+            {/* Configure Phone Button */}
+            <button
+              onClick={() => setIsPhoneModalOpen(true)}
+              className="px-3 py-2 rounded-2xl bg-taskati-bg dark:bg-white/10 text-taskati-navy dark:text-white font-bold text-xs hover:bg-taskati-border transition-all flex items-center gap-1"
+            >
+              <Phone className="w-3.5 h-3.5" />
+              <span>{language === 'ml' ? 'നമ്പർ മാറ്റുക' : 'Setup'}</span>
+            </button>
+          </div>
+        </div>
 
         {/* ======================================================== */}
         {/* DASHBOARD TOP WIDGETS (Habits Summary & Progress Ring)   */}
@@ -684,7 +836,7 @@ export default function Home() {
                     : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white'
                 }`}
               >
-                {t.pending} ({totalCount - completedCount})
+                {t.pending} ({pendingCount})
               </button>
 
               <button
@@ -771,14 +923,11 @@ export default function Home() {
         </button>
 
         <button
-          onClick={() => {
-            const counterTask = tasks.find((tk) => tk.type === 'counter');
-            if (counterTask) setSelectedCounterTask(counterTask);
-          }}
-          className="flex flex-col items-center gap-1 text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-taskati-pink"
+          onClick={() => setIsPhoneModalOpen(true)}
+          className="flex flex-col items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400"
         >
-          <Hash className="w-5 h-5 text-taskati-pink" />
-          <span>{t.counter}</span>
+          <Phone className="w-5 h-5" />
+          <span>{language === 'ml' ? 'ഫോൺ' : 'Phone'}</span>
         </button>
 
         {/* Center Floating Plus */}
@@ -791,13 +940,13 @@ export default function Home() {
 
         <button
           onClick={() => {
-            const readTask = tasks.find((tk) => tk.type === 'reading');
-            if (readTask) setSelectedReadingTask(readTask);
+            const counterTask = tasks.find((tk) => tk.type === 'counter');
+            if (counterTask) setSelectedCounterTask(counterTask);
           }}
-          className="flex flex-col items-center gap-1 text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-taskati-purple"
+          className="flex flex-col items-center gap-1 text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-taskati-pink"
         >
-          <BookOpen className="w-5 h-5 text-taskati-purple" />
-          <span>{t.reading}</span>
+          <Hash className="w-5 h-5 text-taskati-pink" />
+          <span>{t.counter}</span>
         </button>
 
         <button
@@ -834,6 +983,15 @@ export default function Home() {
         <AddTaskModal
           onClose={() => setIsAddModalOpen(false)}
           onAddTask={handleAddTask}
+        />
+      )}
+
+      {isPhoneModalOpen && (
+        <PhoneNotificationModal
+          tasks={tasks}
+          language={language}
+          streak={streak}
+          onClose={() => setIsPhoneModalOpen(false)}
         />
       )}
     </div>
