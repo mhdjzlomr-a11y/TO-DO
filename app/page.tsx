@@ -5,20 +5,27 @@ import { Task, TaskCategory, ReadingDetails } from '@/types/task';
 import { DEFAULT_TASKS } from '@/lib/defaultTasks';
 import { sendLocalNotification, triggerHaptic, playChimeSound } from '@/lib/notifications';
 import { Language, TRANSLATIONS } from '@/lib/translations';
+import { AutoNotificationEngine } from '@/lib/autoNotificationEngine';
 import {
   generateCompletedReport,
   generatePendingReport,
   openWhatsApp
 } from '@/lib/whatsappHelper';
+
+// Components matching Taskati model
 import TaskCard from '@/components/TaskCard';
+import OverviewChart from '@/components/OverviewChart';
+import InProgressCard from '@/components/InProgressCard';
+import TaskListBox from '@/components/TaskListBox';
+import YearlyProgressDonut from '@/components/YearlyProgressDonut';
+import MainHabitsRow from '@/components/MainHabitsRow';
 import DhikrModal from '@/components/DhikrModal';
 import ReadingOptionsModal from '@/components/ReadingOptionsModal';
 import AddTaskModal from '@/components/AddTaskModal';
-import NotificationBanner from '@/components/NotificationBanner';
-import InstallPwaPrompt from '@/components/InstallPwaPrompt';
 import PhoneNotificationModal from '@/components/PhoneNotificationModal';
 import AutoNotificationSettingsModal from '@/components/AutoNotificationSettingsModal';
-import { AutoNotificationEngine } from '@/lib/autoNotificationEngine';
+import InstallPwaPrompt from '@/components/InstallPwaPrompt';
+
 import {
   Search,
   Plus,
@@ -42,7 +49,13 @@ import {
   X,
   Send,
   AlertTriangle,
-  Zap
+  Zap,
+  FolderGit2,
+  Calendar,
+  FileBarChart,
+  LogOut,
+  Bell,
+  Settings
 } from 'lucide-react';
 
 const STORAGE_KEY = 'taskati_daily_tasks_v1';
@@ -57,11 +70,11 @@ export default function Home() {
   const [streak, setStreak] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'completed' | 'spiritual' | 'learning'>('all');
-  const [activeNav, setActiveNav] = useState<'dashboard' | 'tasks' | 'counter' | 'reading'>('dashboard');
+  const [activeNav, setActiveNav] = useState<'dashboard' | 'projects' | 'tasks' | 'calendar' | 'report'>('dashboard');
 
   // Theme & Language
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [language, setLanguage] = useState<Language>('ml'); // Default to Malayalam as requested!
+  const [language, setLanguage] = useState<Language>('ml');
 
   // Modals state
   const [selectedCounterTask, setSelectedCounterTask] = useState<Task | null>(null);
@@ -72,8 +85,8 @@ export default function Home() {
   const [activeToast, setActiveToast] = useState<{ title: string; body: string } | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Translations
   const t = TRANSLATIONS[language];
+  const isRtl = language === 'ar';
 
   // In-app alert toast listener
   useEffect(() => {
@@ -102,7 +115,7 @@ export default function Home() {
       document.documentElement.classList.remove('dark');
     }
 
-    // Load Language (defaults to ml)
+    // Load Language
     const savedLang = (localStorage.getItem(LANG_KEY) as Language) || 'ml';
     setLanguage(savedLang);
 
@@ -119,7 +132,6 @@ export default function Home() {
 
       if (savedTasks) {
         const parsed: Task[] = JSON.parse(savedTasks);
-        // Merge in malayalam translations for default tasks if missing
         const merged = parsed.map((item) => {
           const matchDefault = DEFAULT_TASKS.find((d) => d.id === item.id);
           if (matchDefault) {
@@ -159,6 +171,13 @@ export default function Home() {
     setIsLoaded(true);
   }, []);
 
+  // Initialize Automatic Notification Engine
+  useEffect(() => {
+    if (tasks.length > 0) {
+      AutoNotificationEngine.getInstance().init(tasks, language);
+    }
+  }, [tasks, language]);
+
   // Toggle Theme
   const toggleTheme = () => {
     triggerHaptic([30]);
@@ -172,10 +191,19 @@ export default function Home() {
     }
   };
 
-  // Toggle Language
-  const toggleLanguage = () => {
+  // Toggle Language between ml, en, ar
+  const cycleLanguage = (targetLang?: Language) => {
     triggerHaptic([30]);
-    const nextLang: Language = language === 'en' ? 'ml' : 'en';
+    let nextLang: Language = 'en';
+    if (targetLang) {
+      nextLang = targetLang;
+    } else if (language === 'ml') {
+      nextLang = 'en';
+    } else if (language === 'en') {
+      nextLang = 'ar';
+    } else {
+      nextLang = 'ml';
+    }
     setLanguage(nextLang);
     localStorage.setItem(LANG_KEY, nextLang);
   };
@@ -189,13 +217,6 @@ export default function Home() {
       } catch (e) {}
     }
   };
-
-  // Automatic Notification Engine Initializer & Watcher
-  useEffect(() => {
-    if (tasks.length > 0) {
-      AutoNotificationEngine.getInstance().init(tasks, language);
-    }
-  }, [tasks, language]);
 
   // Toggle Completion
   const handleToggleTask = (taskId: string) => {
@@ -273,6 +294,8 @@ export default function Home() {
   const handleResetDay = () => {
     const confirmMsg = language === 'ml'
       ? 'ഇന്നത്തെ ദിനചര്യകൾ പുനഃക്രമീകരിക്കണോ? പഴയ ശീലങ്ങളും സ്ട്രീക്കും നിലനിൽക്കും.'
+      : language === 'ar'
+      ? 'هل ترغب في إعادة ضبط مهام اليوم؟ ستبقى العادات وأيام الإنجاز محفوظة.'
       : 'Reset all tasks for today? Your routines and streaks will be maintained.';
     if (confirm(confirmMsg)) {
       const reset = tasks.map((item) => ({
@@ -286,7 +309,7 @@ export default function Home() {
     }
   };
 
-  // Quick WhatsApp send helpers
+  // Quick WhatsApp helpers
   const handleQuickSendCompleted = () => {
     const phone = localStorage.getItem(PHONE_KEY) || '';
     if (!phone) {
@@ -329,21 +352,21 @@ export default function Home() {
   const totalCount = tasks.length;
   const completedCount = tasks.filter((item) => item.completed).length;
   const pendingCount = totalCount - completedCount;
-  const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-  const nextUpTask = useMemo(() => {
-    return tasks.find((item) => !item.completed);
+  // Split tasks into Spiritual Box vs Learning Box
+  const spiritualTasks = useMemo(() => {
+    return tasks.filter((t) => t.category === 'spiritual').slice(0, 4);
   }, [tasks]);
 
-  const dateFormatted = new Date().toLocaleDateString(language === 'ml' ? 'ml-IN' : 'en-US', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  });
+  const learningTasks = useMemo(() => {
+    return tasks.filter((t) => t.category === 'learning' || t.type === 'reading').slice(0, 4);
+  }, [tasks]);
 
   return (
-    <div className="min-h-screen bg-taskati-bg dark:bg-[#0D1021] text-taskati-text dark:text-gray-100 flex flex-col lg:flex-row pb-24 lg:pb-8 transition-colors duration-200">
+    <div
+      dir={isRtl ? 'rtl' : 'ltr'}
+      className="min-h-screen bg-taskati-bg dark:bg-[#0D1021] text-taskati-text dark:text-gray-100 flex flex-col lg:flex-row pb-24 lg:pb-8 transition-colors duration-200"
+    >
       {/* Floating In-App Alert Toast Banner */}
       {activeToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-pop">
@@ -368,22 +391,22 @@ export default function Home() {
       )}
 
       {/* ======================================================== */}
-      {/* DESKTOP SIDEBAR (Taskati Style)                          */}
+      {/* DESKTOP SIDEBAR (Exact Taskati Model from Screenshot)    */}
       {/* ======================================================== */}
-      <aside className="hidden lg:flex flex-col w-64 bg-white dark:bg-[#14182E] border-r border-taskati-border dark:border-white/10 p-6 justify-between flex-shrink-0">
+      <aside className="hidden lg:flex flex-col w-60 bg-white dark:bg-[#14182E] border-r dark:border-white/10 border-taskati-border p-6 justify-between flex-shrink-0">
         <div>
-          {/* Logo */}
+          {/* Logo matching Taskati. / تاسكاتي. */}
           <div className="flex items-center gap-2 mb-8 px-2">
             <h1 className="text-2xl font-black text-taskati-navy dark:text-white tracking-tight flex items-center">
-              Taskati<span className="text-taskati-blue">.</span>
+              {language === 'ar' ? 'تاسكاتي.' : 'Taskati.'}
             </h1>
           </div>
 
-          {/* Navigation Links */}
-          <nav className="space-y-1.5">
+          {/* Nav List exactly like screenshot */}
+          <nav className="space-y-1">
             <button
               onClick={() => { setActiveNav('dashboard'); setActiveFilter('all'); }}
-              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
+              className={`w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
                 activeNav === 'dashboard'
                   ? 'bg-taskati-blue text-white shadow-taskati'
                   : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white hover:bg-taskati-bg dark:hover:bg-white/5'
@@ -394,8 +417,20 @@ export default function Home() {
             </button>
 
             <button
+              onClick={() => { setActiveNav('projects'); setActiveFilter('spiritual'); }}
+              className={`w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+                activeNav === 'projects'
+                  ? 'bg-taskati-blue text-white shadow-taskati'
+                  : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white hover:bg-taskati-bg dark:hover:bg-white/5'
+              }`}
+            >
+              <FolderGit2 className="w-4 h-4" />
+              <span>{t.projects}</span>
+            </button>
+
+            <button
               onClick={() => { setActiveNav('tasks'); setActiveFilter('all'); }}
-              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
+              className={`w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
                 activeNav === 'tasks'
                   ? 'bg-taskati-blue text-white shadow-taskati'
                   : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white hover:bg-taskati-bg dark:hover:bg-white/5'
@@ -403,501 +438,284 @@ export default function Home() {
             >
               <CheckSquare className="w-4 h-4" />
               <span>{t.dailyTasks}</span>
-              <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] bg-taskati-blue-light dark:bg-white/10 text-taskati-blue dark:text-taskati-blue-light">
-                {totalCount}
-              </span>
             </button>
 
-            {/* Phone & WhatsApp Notifications in Sidebar */}
             <button
               onClick={() => setIsPhoneModalOpen(true)}
-              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 transition-all border border-emerald-200 dark:border-emerald-800/40"
+              className="w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white hover:bg-taskati-bg dark:hover:bg-white/5 transition-all"
             >
-              <Phone className="w-4 h-4" />
-              <span>{language === 'ml' ? 'ഫോൺ നമ്പർ അലർട്ട്' : 'Phone Alerts'}</span>
+              <MessageSquare className="w-4 h-4" />
+              <span>{t.messages}</span>
             </button>
 
             <button
-              onClick={() => {
-                const counterTask = tasks.find((item) => item.type === 'counter');
-                if (counterTask) setSelectedCounterTask(counterTask);
-              }}
-              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white hover:bg-taskati-bg dark:hover:bg-white/5 transition-all"
+              onClick={() => setIsAutoModalOpen(true)}
+              className="w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white hover:bg-taskati-bg dark:hover:bg-white/5 transition-all"
             >
-              <Hash className="w-4 h-4 text-taskati-pink" />
-              <span>{t.dhikrCounter}</span>
+              <Zap className="w-4 h-4 text-emerald-500" />
+              <span>{language === 'ml' ? 'ഓട്ടോ അലർട്ട്' : language === 'ar' ? 'التنبيه التلقائي' : 'Auto Alert'}</span>
             </button>
 
             <button
-              onClick={() => {
-                const readTask = tasks.find((item) => item.type === 'reading');
-                if (readTask) setSelectedReadingTask(readTask);
-              }}
-              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white hover:bg-taskati-bg dark:hover:bg-white/5 transition-all"
+              onClick={handleResetDay}
+              className="w-full flex items-center gap-3.5 px-4 py-2.5 rounded-2xl text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all"
             >
-              <BookOpen className="w-4 h-4 text-taskati-purple" />
-              <span>{t.readingHub}</span>
+              <LogOut className="w-4 h-4" />
+              <span>{t.signOut}</span>
             </button>
           </nav>
         </div>
 
-        {/* Taskati Pro Card */}
+        {/* Taskati Pro Card matching Screenshot */}
         <div className="bg-gradient-to-br from-taskati-blue to-taskati-blue-hover text-white rounded-3xl p-5 shadow-taskati-float relative overflow-hidden">
           <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center font-black text-sm mb-3">
             T.
           </div>
-          <h4 className="text-sm font-bold">{t.appName} Pro</h4>
-          <p className="text-[11px] text-white/80 mt-1 mb-3">
-            {language === 'ml' ? 'ദിക്റുകളും ദിനചര്യകളും ലളിതമായി' : 'Track Dhikr, Quran, English & Reading with local safety'}
+          <h4 className="text-sm font-bold">{t.proTitle}</h4>
+          <p className="text-[10px] text-white/80 mt-1 mb-3">
+            {t.proDesc}
           </p>
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="w-full py-2 bg-white text-taskati-blue font-bold rounded-2xl text-xs shadow-sm hover:bg-white/95 transition-all"
           >
-            + {t.addTask}
+            {t.getPro}
           </button>
         </div>
       </aside>
 
       {/* ======================================================== */}
-      {/* MAIN CONTENT AREA                                        */}
+      {/* MAIN BODY AREA (Taskati Model)                           */}
       {/* ======================================================== */}
       <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-6 lg:p-8 space-y-6">
-        {/* Top Header Row */}
+        {/* Top Header Row matching Screenshot */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center justify-between lg:justify-start gap-3">
-            {/* Mobile Logo */}
-            <div className="lg:hidden flex items-center gap-1.5">
-              <span className="w-8 h-8 rounded-xl bg-taskati-blue text-white flex items-center justify-center font-black text-sm shadow-sm">
-                T.
-              </span>
-              <h2 className="text-xl font-black text-taskati-navy dark:text-white">Taskati.</h2>
-            </div>
-
-            <div>
-              <p className="text-xs font-bold text-taskati-muted dark:text-gray-400 uppercase tracking-wider">
-                {dateFormatted}
-              </p>
-              <h2 className="text-lg md:text-xl font-black text-taskati-navy dark:text-white">
-                {t.greeting}
-              </h2>
-            </div>
+          {/* Search Bar matching screenshot */}
+          <div className="relative flex-1 sm:max-w-md">
+            <Search className={`w-4 h-4 text-taskati-muted absolute top-1/2 -translate-y-1/2 ${isRtl ? 'right-4' : 'left-4'}`} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t.searchPlaceholder}
+              className={`w-full py-2.5 rounded-2xl bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 text-xs text-taskati-navy dark:text-white placeholder-taskati-muted focus:outline-none focus:border-taskati-blue shadow-taskati-card font-medium ${
+                isRtl ? 'pr-10 pl-4' : 'pl-10 pr-4'
+              }`}
+            />
           </div>
 
-          {/* Search Bar & Actions */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 sm:w-52">
-              <Search className="w-4 h-4 text-taskati-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t.searchPlaceholder}
-                className="w-full pl-9 pr-4 py-2 rounded-2xl bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 text-xs text-taskati-navy dark:text-white placeholder-taskati-muted focus:outline-none focus:border-taskati-blue shadow-taskati-card font-medium"
-              />
+          {/* Right Header Action Items */}
+          <div className="flex items-center gap-3 self-end sm:self-auto">
+            {/* Language Selector matching screenshot pill */}
+            <div className="flex items-center bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 rounded-2xl shadow-taskati-card p-1 text-xs font-bold">
+              <button
+                onClick={() => cycleLanguage('en')}
+                className={`px-2.5 py-1 rounded-xl transition-all ${
+                  language === 'en' ? 'bg-taskati-blue text-white shadow-xs' : 'text-taskati-muted'
+                }`}
+              >
+                Eng (US)
+              </button>
+              <button
+                onClick={() => cycleLanguage('ml')}
+                className={`px-2.5 py-1 rounded-xl transition-all ${
+                  language === 'ml' ? 'bg-taskati-blue text-white shadow-xs' : 'text-taskati-muted'
+                }`}
+              >
+                മലയാളം
+              </button>
+              <button
+                onClick={() => cycleLanguage('ar')}
+                className={`px-2.5 py-1 rounded-xl transition-all ${
+                  language === 'ar' ? 'bg-taskati-blue text-white shadow-xs' : 'text-taskati-muted'
+                }`}
+              >
+                العربية
+              </button>
             </div>
 
-            {/* Dedicated Phone & WhatsApp Button */}
-            <button
-              onClick={() => setIsPhoneModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-2xl shadow-taskati-card text-xs font-bold hover:bg-emerald-100 transition-all active:scale-95 flex-shrink-0"
-              title="Add Phone Number & WhatsApp alerts"
-            >
-              <Phone className="w-3.5 h-3.5" />
-              <span>{language === 'ml' ? 'ഫോൺ നമ്പർ' : 'Phone'}</span>
-            </button>
-
-            {/* Automatic Notification System Button */}
+            {/* Auto Alert indicator button */}
             <button
               onClick={() => setIsAutoModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-taskati-blue-light to-taskati-purple-light dark:from-[#1E2345] dark:to-[#2B1B36] border border-taskati-blue/30 text-taskati-blue dark:text-taskati-blue-light rounded-2xl shadow-taskati-card text-xs font-bold hover:opacity-90 transition-all active:scale-95 flex-shrink-0"
+              className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-300 rounded-2xl shadow-taskati-card relative hover:bg-emerald-100 transition-all"
               title="Automatic Notification System Status"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              <Zap className="w-3.5 h-3.5 text-taskati-blue fill-taskati-blue" />
-              <span>{language === 'ml' ? 'ഓട്ടോ അലർട്ട്' : 'Auto Alert'}</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping absolute top-1.5 right-1.5" />
+              <Zap className="w-4 h-4 fill-current" />
             </button>
 
-            {/* Language Toggle Button */}
+            {/* Notification Bell matching screenshot */}
             <button
-              onClick={toggleLanguage}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 rounded-2xl shadow-taskati-card text-xs font-bold text-taskati-navy dark:text-white hover:border-taskati-blue transition-all"
-              title="Toggle English / Malayalam"
+              onClick={() => setIsPhoneModalOpen(true)}
+              className="p-2.5 bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 text-taskati-navy dark:text-gray-200 rounded-2xl shadow-taskati-card relative hover:border-taskati-blue transition-all"
             >
-              <Globe className="w-3.5 h-3.5 text-taskati-blue" />
-              <span>{language === 'en' ? 'മലയാളം' : 'English'}</span>
+              <span className="w-2 h-2 rounded-full bg-taskati-pink absolute top-2 right-2" />
+              <Bell className="w-4 h-4" />
             </button>
 
-            {/* Dark / Light Theme Toggle */}
+            {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
-              className="p-2.5 bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 rounded-2xl shadow-taskati-card text-taskati-navy dark:text-amber-400 hover:border-taskati-blue transition-all"
-              title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+              className="p-2.5 bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 text-taskati-navy dark:text-amber-400 rounded-2xl shadow-taskati-card hover:border-taskati-blue transition-all"
             >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4 text-taskati-navy" />}
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
 
-            {/* Streak pill */}
-            <div className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 rounded-2xl shadow-taskati-card text-xs font-bold text-taskati-navy dark:text-white flex-shrink-0">
-              <Flame className="w-4 h-4 text-amber-500 fill-amber-500" />
-              <span>{streak} {t.streak}</span>
+            {/* Avatar matching screenshot */}
+            <div
+              onClick={() => setIsPhoneModalOpen(true)}
+              className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-taskati-blue to-taskati-purple text-white flex items-center justify-center font-black text-xs shadow-md cursor-pointer hover:scale-105 transition-transform"
+            >
+              👤
             </div>
-
-            {/* Add Task Button */}
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="p-2.5 sm:px-4 sm:py-2 rounded-2xl bg-taskati-blue text-white text-xs font-bold shadow-taskati hover:bg-taskati-blue-hover transition-all flex items-center gap-1.5 flex-shrink-0"
-              title={t.addTask}
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">{t.addTask}</span>
-            </button>
           </div>
         </header>
 
-        {/* PWA Install Prompt Banner */}
-        <InstallPwaPrompt />
-
-        {/* Push Notification Status Banner */}
-        <NotificationBanner language={language} />
-
         {/* ======================================================== */}
-        {/* PHONE NOTIFICATION QUICK DISPATCH CARD                   */}
-        {/* ======================================================== */}
-        <div className="p-4 rounded-3xl bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 shadow-taskati-card flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
-              <Smartphone className="w-5 h-5" />
-            </span>
-            <div>
-              <h4 className="text-sm font-bold text-taskati-navy dark:text-white">
-                {language === 'ml' ? 'ഫോണിലേക്ക് പ്രത്യേക റിപ്പോർട്ടുകൾ അയക്കുക' : 'Send Phone & WhatsApp Reports'}
-              </h4>
-              <p className="text-xs text-taskati-muted dark:text-gray-400">
-                {language === 'ml'
-                  ? 'പൂർത്തിയായ ദിനചര്യകളും പൂർത്തിയാവാത്തവയും വേറെ വേറെ സന്ദേശമായി അയക്കാം'
-                  : 'Separate notifications for completed tasks and incomplete reminders'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Completed Notice Button */}
-            <button
-              onClick={handleQuickSendCompleted}
-              className="px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>
-                {language === 'ml'
-                  ? `പൂർത്തിയായവ (${completedCount}) WhatsApp`
-                  : `Completed (${completedCount})`}
-              </span>
-            </button>
-
-            {/* Pending Notice Button */}
-            <button
-              onClick={handleQuickSendPending}
-              className="px-3.5 py-2 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
-            >
-              <AlertTriangle className="w-4 h-4" />
-              <span>
-                {language === 'ml'
-                  ? `ബാക്കിയുള്ളവ (${pendingCount}) WhatsApp`
-                  : `Pending (${pendingCount})`}
-              </span>
-            </button>
-
-            {/* Configure Phone Button */}
-            <button
-              onClick={() => setIsPhoneModalOpen(true)}
-              className="px-3 py-2 rounded-2xl bg-taskati-bg dark:bg-white/10 text-taskati-navy dark:text-white font-bold text-xs hover:bg-taskati-border transition-all flex items-center gap-1"
-            >
-              <Phone className="w-3.5 h-3.5" />
-              <span>{language === 'ml' ? 'നമ്പർ മാറ്റുക' : 'Setup'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* ======================================================== */}
-        {/* DASHBOARD TOP WIDGETS (Habits Summary & Progress Ring)   */}
+        {/* TASKATI 3-COLUMN MAIN DASHBOARD (Exact Image Layout)     */}
         {/* ======================================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Habits Row */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-taskati-navy dark:text-white">{t.dailyHabitFocus}</h3>
-              <button
-                onClick={handleResetDay}
-                className="text-xs font-semibold text-taskati-muted dark:text-gray-400 hover:text-taskati-blue flex items-center gap-1"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                {t.resetDay}
-              </button>
+          {/* LEFT 2 COLUMNS (Charts, Task Boxes, Habits) */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* 1. Overview Activity Chart */}
+            <OverviewChart language={language} />
+
+            {/* 2. Middle Task Boxes: Daily Task & Weekly Task */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <TaskListBox
+                title={t.dailyTaskTitle}
+                tasks={spiritualTasks}
+                language={language}
+                onToggle={handleToggleTask}
+                onAddNew={() => setIsAddModalOpen(true)}
+                onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+              />
+
+              <TaskListBox
+                title={t.weeklyTaskTitle}
+                tasks={learningTasks}
+                language={language}
+                onToggle={handleToggleTask}
+                onAddNew={() => setIsAddModalOpen(true)}
+                onOpenReading={(tk) => setSelectedReadingTask(tk)}
+              />
             </div>
 
-            {/* 4 Colored Squircle Tiles */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {/* Tile 1: Dhikr */}
-              <button
-                onClick={() => {
-                  const item = tasks.find((tk) => tk.type === 'counter');
-                  if (item) setSelectedCounterTask(item);
-                }}
-                className="p-4 rounded-3xl bg-taskati-purple text-white shadow-taskati-card text-left transition-transform active:scale-95 hover:shadow-taskati relative overflow-hidden"
-              >
-                <div className="w-8 h-8 rounded-2xl bg-white/20 flex items-center justify-center mb-2">
-                  <Hash className="w-4 h-4" />
-                </div>
-                <div className="text-2xl font-black">300</div>
-                <div className="text-[11px] text-white/90 font-bold">{t.dhikrDaily}</div>
-                <div className="text-[9px] text-white/70 mt-0.5 truncate">
-                  {language === 'ml' ? 'ഇസ്തിഗ്ഫാർ, തസ്ബീഹ്, സ്വലാത്ത്' : 'Isthigfar, Thasbeeh, Swalath'}
-                </div>
-              </button>
-
-              {/* Tile 2: Quran / Qiraath */}
-              <div className="p-4 rounded-3xl bg-taskati-blue text-white shadow-taskati-card text-left relative overflow-hidden">
-                <div className="w-8 h-8 rounded-2xl bg-white/20 flex items-center justify-center mb-2">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div className="text-2xl font-black">4 {t.surahs}</div>
-                <div className="text-[11px] text-white/90 font-bold">{t.quranTilawat}</div>
-                <div className="text-[9px] text-white/70 mt-0.5 truncate">
-                  {language === 'ml' ? 'യാസീൻ, മുൽക്, ഖിറാഅത്ത്' : 'Yaseen, Mulk, Fathiha'}
-                </div>
-              </div>
-
-              {/* Tile 3: Reading */}
-              <button
-                onClick={() => {
-                  const r = tasks.find((item) => item.type === 'reading');
-                  if (r) setSelectedReadingTask(r);
-                }}
-                className="p-4 rounded-3xl bg-gradient-to-br from-indigo-700 to-taskati-purple text-white shadow-taskati-card text-left transition-transform active:scale-95 relative overflow-hidden"
-              >
-                <div className="w-8 h-8 rounded-2xl bg-white/20 flex items-center justify-center mb-2">
-                  <BookOpen className="w-4 h-4" />
-                </div>
-                <div className="text-2xl font-black">25 m</div>
-                <div className="text-[11px] text-white/90 font-bold">{t.dailyReading}</div>
-                <div className="text-[9px] text-white/70 mt-0.5 truncate">{t.tapForOptions}</div>
-              </button>
-
-              {/* Tile 4: English Language */}
-              <div className="p-4 rounded-3xl bg-taskati-pink text-white shadow-taskati-card text-left relative overflow-hidden">
-                <div className="w-8 h-8 rounded-2xl bg-white/20 flex items-center justify-center mb-2">
-                  <Headphones className="w-4 h-4" />
-                </div>
-                <div className="text-2xl font-black">2 {t.skills}</div>
-                <div className="text-[11px] text-white/90 font-bold">{t.englishHabits}</div>
-                <div className="text-[9px] text-white/70 mt-0.5 truncate">
-                  {language === 'ml' ? 'കേൾക്കൽ & സംസാരിക്കൽ' : 'Listening & Speaking'}
-                </div>
-              </div>
-            </div>
-
-            {/* Next Up Routine Card */}
-            {nextUpTask && (
-              <div className="p-4 bg-white dark:bg-[#181C33] rounded-3xl border border-taskati-border dark:border-white/10 shadow-taskati-card flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="w-10 h-10 rounded-2xl bg-taskati-blue-light dark:bg-taskati-blue/20 text-taskati-blue flex items-center justify-center flex-shrink-0">
-                    <Clock className="w-5 h-5" />
-                  </span>
-                  <div className="truncate">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-taskati-pink">
-                      {t.nextScheduledTask}
-                    </span>
-                    <h4 className="text-sm font-bold text-taskati-navy dark:text-white truncate">
-                      {language === 'ml' && nextUpTask.malayalamTitle ? nextUpTask.malayalamTitle : nextUpTask.title}
-                    </h4>
-                    {nextUpTask.arabicTitle && (
-                      <p className="text-xs text-taskati-purple font-serif">{nextUpTask.arabicTitle}</p>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => handleToggleTask(nextUpTask.id)}
-                  className="px-4 py-2 rounded-2xl bg-taskati-blue text-white text-xs font-bold shadow-taskati hover:bg-taskati-blue-hover transition-all flex items-center gap-1.5 flex-shrink-0"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{t.completeNow}</span>
-                </button>
-              </div>
-            )}
+            {/* 3. Main Habits 4-Card Squircle Row */}
+            <MainHabitsRow
+              tasks={tasks}
+              language={language}
+              onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+              onOpenReading={(tk) => setSelectedReadingTask(tk)}
+            />
           </div>
 
-          {/* Daily Progress Donut Card */}
-          <div className="bg-white dark:bg-[#181C33] rounded-4xl p-6 border border-taskati-border dark:border-white/10 shadow-taskati-card flex flex-col items-center justify-center text-center">
-            <h3 className="text-sm font-bold text-taskati-navy dark:text-white mb-4 self-start">
-              {t.dailyProgress}
-            </h3>
+          {/* RIGHT 1 COLUMN (In Progress Cards & Yearly Progress) */}
+          <div className="space-y-6">
+            {/* In Progress Card with Project Pills */}
+            <InProgressCard
+              tasks={tasks}
+              language={language}
+              onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+              onOpenReading={(tk) => setSelectedReadingTask(tk)}
+              onAddNew={() => setIsAddModalOpen(true)}
+            />
 
-            {/* Circular Progress Ring */}
-            <div className="relative w-44 h-44 my-2 flex items-center justify-center">
-              <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="40"
-                  stroke={theme === 'dark' ? '#2A3052' : '#E8ECF5'}
-                  strokeWidth="8"
-                  fill="transparent"
-                />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="40"
-                  stroke="url(#taskatiGradient)"
-                  strokeWidth="8"
-                  strokeDasharray={251.32}
-                  strokeDashoffset={251.32 - (251.32 * percentage) / 100}
-                  strokeLinecap="round"
-                  fill="transparent"
-                  className="transition-all duration-500 ease-out"
-                />
-                <defs>
-                  <linearGradient id="taskatiGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#5051F9" />
-                    <stop offset="50%" stopColor="#744BE4" />
-                    <stop offset="100%" stopColor="#E84E89" />
-                  </linearGradient>
-                </defs>
-              </svg>
+            {/* Yearly / Daily Progress Gauge Donut Chart */}
+            <YearlyProgressDonut
+              completed={completedCount}
+              total={totalCount}
+              language={language}
+            />
 
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-4xl font-black text-taskati-navy dark:text-white tracking-tight">{percentage}%</span>
-                <span className="text-[11px] font-semibold text-taskati-muted dark:text-gray-400 mt-0.5">
-                  {completedCount} / {totalCount} {t.doneOf}
-                </span>
+            {/* Quick Phone & WhatsApp Dispatch Card */}
+            <div className="bg-white dark:bg-[#181C33] rounded-3xl p-5 border border-taskati-border dark:border-white/10 shadow-taskati-card space-y-3">
+              <div className="flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-emerald-600" />
+                <h4 className="text-xs font-bold text-taskati-navy dark:text-white">
+                  {language === 'ml' ? 'WhatsApp റിപ്പോർട്ടുകൾ' : language === 'ar' ? 'تقارير واتساب' : 'WhatsApp Reports'}
+                </h4>
               </div>
-            </div>
+              <div className="space-y-2">
+                <button
+                  onClick={handleQuickSendCompleted}
+                  className="w-full py-2 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-between active:scale-95 transition-all"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{language === 'ml' ? 'പൂർത്തിയായവ അയക്കുക' : language === 'ar' ? 'إرسال المنجزة' : 'Send Completed'}</span>
+                  </span>
+                  <span className="bg-white/20 px-2 py-0.5 rounded-full text-[10px]">{completedCount}</span>
+                </button>
 
-            {/* Category breakdown pills */}
-            <div className="grid grid-cols-2 gap-2 w-full mt-4 text-[11px] font-semibold text-taskati-navy dark:text-gray-300">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-taskati-blue" />
-                <span>{language === 'ml' ? 'ആത്മീയ (9)' : 'Spiritual (9)'}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-taskati-pink" />
-                <span>{language === 'ml' ? 'ദിക്റുകൾ (3)' : 'Dhikr 100x (3)'}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-taskati-purple" />
-                <span>{language === 'ml' ? 'ഇംഗ്ലീഷ് (2)' : 'English (2)'}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                <span>{language === 'ml' ? 'വായന (1)' : 'Reading (1)'}</span>
+                <button
+                  onClick={handleQuickSendPending}
+                  className="w-full py-2 px-3 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center justify-between active:scale-95 transition-all"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>{language === 'ml' ? 'ബാക്കിയുള്ളവ ഓർമ്മിപ്പിക്കുക' : language === 'ar' ? 'تذكير بالباقي' : 'Send Pending'}</span>
+                  </span>
+                  <span className="bg-white/20 px-2 py-0.5 rounded-full text-[10px]">{pendingCount}</span>
+                </button>
               </div>
             </div>
           </div>
         </div>
 
         {/* ======================================================== */}
-        {/* TASK LIST & TIMELINE SECTION                             */}
+        {/* ALL ROUTINES IN COLORFUL CAPSULE BARS (Image 2 style)   */}
         {/* ======================================================== */}
-        <section className="space-y-4">
-          {/* Header & Filter Tabs */}
+        <section className="space-y-4 pt-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-bold text-taskati-navy dark:text-white">{t.todayRoutines}</h3>
+              <h3 className="text-base font-bold text-taskati-navy dark:text-white">
+                {t.todayRoutines}
+              </h3>
               <p className="text-xs text-taskati-muted dark:text-gray-400">
                 {t.routinesDesc}
               </p>
             </div>
 
-            {/* Filter Pills */}
+            {/* Filter Pills matching Taskati */}
             <div className="flex flex-wrap items-center gap-1.5 p-1 bg-white dark:bg-[#181C33] border border-taskati-border dark:border-white/10 rounded-2xl shadow-taskati-card">
-              <button
-                onClick={() => setActiveFilter('all')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  activeFilter === 'all'
-                    ? 'bg-taskati-blue text-white shadow-sm'
-                    : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white'
-                }`}
-              >
-                {t.all} ({tasks.length})
-              </button>
-
-              <button
-                onClick={() => setActiveFilter('pending')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  activeFilter === 'pending'
-                    ? 'bg-taskati-blue text-white shadow-sm'
-                    : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white'
-                }`}
-              >
-                {t.pending} ({pendingCount})
-              </button>
-
-              <button
-                onClick={() => setActiveFilter('completed')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  activeFilter === 'completed'
-                    ? 'bg-taskati-blue text-white shadow-sm'
-                    : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white'
-                }`}
-              >
-                {t.completed} ({completedCount})
-              </button>
-
-              <button
-                onClick={() => setActiveFilter('spiritual')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  activeFilter === 'spiritual'
-                    ? 'bg-taskati-blue text-white shadow-sm'
-                    : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white'
-                }`}
-              >
-                {t.dhikrAndQuran}
-              </button>
-
-              <button
-                onClick={() => setActiveFilter('learning')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  activeFilter === 'learning'
-                    ? 'bg-taskati-blue text-white shadow-sm'
-                    : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white'
-                }`}
-              >
-                {t.englishAndReading}
-              </button>
+              {(['all', 'pending', 'completed', 'spiritual', 'learning'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setActiveFilter(f)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    activeFilter === f
+                      ? 'bg-taskati-blue text-white shadow-sm'
+                      : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white'
+                  }`}
+                >
+                  {f === 'all'
+                    ? `${t.all} (${totalCount})`
+                    : f === 'pending'
+                    ? `${t.pending} (${pendingCount})`
+                    : f === 'completed'
+                    ? `${t.completed} (${completedCount})`
+                    : f === 'spiritual'
+                    ? t.dhikrAndQuran
+                    : t.englishAndReading}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Task Cards Grid / List */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {filteredTasks.length === 0 ? (
-              <div className="col-span-full py-12 text-center bg-white dark:bg-[#181C33] rounded-3xl border border-taskati-border dark:border-white/10">
-                <p className="text-sm font-bold text-taskati-navy dark:text-white mb-1">
-                  {language === 'ml' ? 'ദിനചര്യകൾ ഒന്നും കണ്ടെത്തിയില്ല' : 'No tasks found'}
-                </p>
-                <p className="text-xs text-taskati-muted dark:text-gray-400 mb-4">
-                  {language === 'ml' ? 'ഫിൽട്ടറോ തിരയലോ മാറ്റുക' : 'Try clearing your search query or filter'}
-                </p>
-                <button
-                  onClick={() => { setSearchQuery(''); setActiveFilter('all'); }}
-                  className="px-4 py-2 bg-taskati-blue text-white text-xs font-bold rounded-2xl shadow-taskati"
-                >
-                  {language === 'ml' ? 'എല്ലാ ദിനചര്യകളും കാണുക' : 'Show All Tasks'}
-                </button>
-              </div>
-            ) : (
-              filteredTasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  language={language}
-                  onToggle={handleToggleTask}
-                  onOpenCounter={(tk) => setSelectedCounterTask(tk)}
-                  onOpenReading={(tk) => setSelectedReadingTask(tk)}
-                  onDelete={handleDeleteTask}
-                />
-              ))
-            )}
+          {/* Dynamic Colorful Capsule Progress Bars */}
+          <div className="space-y-3">
+            {filteredTasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                language={language}
+                onToggle={handleToggleTask}
+                onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+                onOpenReading={(tk) => setSelectedReadingTask(tk)}
+                onDelete={handleDeleteTask}
+              />
+            ))}
           </div>
         </section>
       </main>
@@ -920,7 +738,7 @@ export default function Home() {
           onClick={() => setIsPhoneModalOpen(true)}
           className="flex flex-col items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400"
         >
-          <Phone className="w-5 h-5" />
+          <Smartphone className="w-5 h-5" />
           <span>{language === 'ml' ? 'ഫോൺ' : 'Phone'}</span>
         </button>
 
@@ -954,9 +772,7 @@ export default function Home() {
         </button>
       </nav>
 
-      {/* ======================================================== */}
-      {/* INTERACTIVE MODALS                                       */}
-      {/* ======================================================== */}
+      {/* Modals */}
       {selectedCounterTask && (
         <DhikrModal
           task={selectedCounterTask}
