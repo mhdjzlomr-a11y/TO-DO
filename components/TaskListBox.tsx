@@ -17,6 +17,56 @@ interface TaskListBoxProps {
   onOpenReading?: (task: Task) => void;
 }
 
+// 5 Vibrant Themes requested by user:
+// 1: Blue (നീല), 2: Rose (റോസ്), 3: White (വൈറ്റ്), 4: Violet (വയലറ്റ്), 5: Dark Blue (ഡാർക്ക് ബ്ലൂ)
+const VIBRANT_ROW_STYLES = [
+  // 1. Blue (നീല)
+  {
+    name: 'blue',
+    container: 'bg-[#EBF3FF] hover:bg-[#DEECFF] border-[#BFDBFE] dark:bg-[#1E3A8A]/35 dark:border-blue-700/40',
+    text: 'text-[#1E40AF] dark:text-[#93C5FD]',
+    checkBorder: 'border-[#3B82F6]',
+    checkBg: 'bg-[#3B82F6] text-white',
+    timeBadge: 'bg-white/90 text-[#1E40AF] dark:bg-black/30 dark:text-[#93C5FD]',
+  },
+  // 2. Rose (റോസ്)
+  {
+    name: 'rose',
+    container: 'bg-[#FDF2F8] hover:bg-[#FCE7F3] border-[#FBCFE8] dark:bg-[#831843]/35 dark:border-pink-700/40',
+    text: 'text-[#9D174D] dark:text-[#F9A8D4]',
+    checkBorder: 'border-[#EC4899]',
+    checkBg: 'bg-[#EC4899] text-white',
+    timeBadge: 'bg-white/90 text-[#9D174D] dark:bg-black/30 dark:text-[#F9A8D4]',
+  },
+  // 3. White (വൈറ്റ്)
+  {
+    name: 'white',
+    container: 'bg-white hover:bg-gray-50 border-[#E2E8F0] dark:bg-[#1C2237] dark:border-white/10 shadow-2xs',
+    text: 'text-gray-900 dark:text-gray-100',
+    checkBorder: 'border-gray-400 dark:border-gray-500',
+    checkBg: 'bg-taskati-navy dark:bg-white text-white dark:text-taskati-navy',
+    timeBadge: 'bg-gray-100 text-gray-700 dark:bg-black/30 dark:text-gray-300',
+  },
+  // 4. Violet (വയലറ്റ്)
+  {
+    name: 'violet',
+    container: 'bg-[#F5F3FF] hover:bg-[#EDE9FE] border-[#DDD6FE] dark:bg-[#4C1D95]/35 dark:border-purple-700/40',
+    text: 'text-[#6D28D9] dark:text-[#C4B5FD]',
+    checkBorder: 'border-[#8B5CF6]',
+    checkBg: 'bg-[#8B5CF6] text-white',
+    timeBadge: 'bg-white/90 text-[#6D28D9] dark:bg-black/30 dark:text-[#C4B5FD]',
+  },
+  // 5. Dark Blue (ഡാർക്ക് ബ്ലൂ)
+  {
+    name: 'darkblue',
+    container: 'bg-[#1E293B] hover:bg-[#1A2434] border-[#0F172A] text-white dark:bg-[#0B132B] dark:border-blue-900/60 shadow-xs',
+    text: 'text-white dark:text-white',
+    checkBorder: 'border-blue-400',
+    checkBg: 'bg-[#3B82F6] text-white',
+    timeBadge: 'bg-white/20 text-white dark:bg-white/10 dark:text-blue-200',
+  },
+];
+
 export default function TaskListBox({
   title,
   tasks,
@@ -41,18 +91,19 @@ export default function TaskListBox({
   };
 
   return (
-    <div className="bg-white dark:bg-[#181C33] rounded-3xl p-5 border border-taskati-border dark:border-white/10 shadow-taskati-card flex flex-col justify-between space-y-3 transition-colors">
-      {/* Box Header matching Taskati image */}
-      <div className="flex items-center justify-between pb-1 border-b border-taskati-border/50 dark:border-white/5">
+    <div className="bg-white dark:bg-[#181C33] rounded-3xl p-5 border border-taskati-border dark:border-white/10 shadow-taskati-card flex flex-col justify-between space-y-3.5 transition-colors">
+      {/* Box Header */}
+      <div className="flex items-center justify-between pb-2 border-b border-taskati-border/60 dark:border-white/5">
         <h4 className="text-xs font-bold text-taskati-navy dark:text-white uppercase tracking-wider">{title}</h4>
         <span className="px-2.5 py-0.5 rounded-full bg-taskati-blue text-white text-[10px] font-bold">
           {t.details}
         </span>
       </div>
 
-      {/* Task Items matching Taskati clean checkboxes */}
+      {/* Colorful Task Pill Rows: Blue, Rose, White, Violet, Dark Blue */}
       <div className="space-y-2.5 flex-1 min-h-[140px]">
-        {tasks.map((task) => {
+        {tasks.map((task, idx) => {
+          const style = VIBRANT_ROW_STYLES[idx % VIBRANT_ROW_STYLES.length];
           const displayTitle = language === 'ml' && task.malayalamTitle ? task.malayalamTitle : task.title;
 
           return (
@@ -65,17 +116,20 @@ export default function TaskListBox({
                   onOpenReading(task);
                 }
               }}
-              className="flex items-center justify-between gap-2.5 group cursor-pointer py-1 text-xs"
+              className={`p-3 rounded-2xl border transition-all duration-200 cursor-pointer flex items-center justify-between gap-2.5 ${
+                style.container
+              } ${task.completed ? 'opacity-65' : 'shadow-2xs hover:scale-[1.01]'}`}
             >
-              <div className="flex items-center gap-2.5 min-w-0">
+              {/* Left: Circle Check + Title */}
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
                 {/* Circle Checkbox */}
                 <button
                   type="button"
                   onClick={(e) => handleCheck(task.id, task.completed, e)}
                   className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
                     task.completed
-                      ? 'bg-taskati-navy dark:bg-taskati-blue text-white shadow-xs'
-                      : 'border-2 border-taskati-muted/50 dark:border-white/30 hover:border-taskati-blue'
+                      ? `${style.checkBg} shadow-xs`
+                      : `border-2 ${style.checkBorder} bg-white dark:bg-[#1E293B] hover:scale-105`
                   }`}
                 >
                   {task.completed && <Check className="w-3 h-3 stroke-[3]" />}
@@ -83,23 +137,21 @@ export default function TaskListBox({
 
                 {/* Title */}
                 <span
-                  className={`truncate font-semibold transition-colors ${
-                    task.completed
-                      ? 'line-through text-taskati-muted dark:text-gray-500'
-                      : 'text-taskati-navy dark:text-white group-hover:text-taskati-blue'
+                  className={`text-xs font-bold truncate transition-colors ${style.text} ${
+                    task.completed ? 'line-through opacity-70' : ''
                   }`}
                 >
                   {displayTitle}
                 </span>
 
-                {/* Counter / Reading interactive tag */}
+                {/* Interactive Pills */}
                 {task.type === 'counter' && (
                   <span
                     onClick={(e) => {
                       e.stopPropagation();
                       onOpenCounter && onOpenCounter(task);
                     }}
-                    className="px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 text-[10px] font-bold text-taskati-blue hover:scale-105 transition-transform flex items-center gap-0.5"
+                    className="px-2 py-0.5 rounded-lg bg-white/90 text-taskati-blue text-[10px] font-bold shadow-2xs hover:scale-105 transition-transform flex items-center gap-0.5"
                   >
                     <Hash className="w-2.5 h-2.5" />
                     <span>{task.counterCurrent || 0}/100</span>
@@ -111,7 +163,7 @@ export default function TaskListBox({
                       e.stopPropagation();
                       onOpenReading && onOpenReading(task);
                     }}
-                    className="px-1.5 py-0.5 rounded-md bg-purple-50 dark:bg-purple-900/30 text-[10px] font-bold text-taskati-purple hover:scale-105 transition-transform flex items-center gap-0.5"
+                    className="px-2 py-0.5 rounded-lg bg-white/90 text-taskati-purple text-[10px] font-bold shadow-2xs hover:scale-105 transition-transform flex items-center gap-0.5"
                   >
                     <BookOpen className="w-2.5 h-2.5" />
                     <span>{language === 'ml' ? 'ഓപ്ഷനുകൾ' : 'Options'}</span>
@@ -119,10 +171,10 @@ export default function TaskListBox({
                 )}
               </div>
 
-              {/* Time */}
-              <span className="text-[10px] font-medium text-taskati-muted dark:text-gray-400 flex items-center gap-0.5 flex-shrink-0">
-                <Clock className="w-2.5 h-2.5" />
-                {task.time}
+              {/* Right: Scheduled Time Badge */}
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 flex-shrink-0 shadow-2xs ${style.timeBadge}`}>
+                <Clock className="w-2.5 h-2.5 opacity-70" />
+                <span>{task.time}</span>
               </span>
             </div>
           );
@@ -133,7 +185,7 @@ export default function TaskListBox({
       <button
         type="button"
         onClick={onAddNew}
-        className="pt-2 text-left text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-taskati-blue flex items-center justify-between border-t border-taskati-border/50 dark:border-white/5 transition-colors"
+        className="pt-2 text-left text-xs font-bold text-taskati-blue hover:underline flex items-center justify-between border-t border-taskati-border/60 dark:border-white/5 transition-colors"
       >
         <span>{t.addNewTask}</span>
         <span className="text-sm">+</span>

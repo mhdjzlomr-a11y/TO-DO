@@ -12,13 +12,20 @@ import {
   openWhatsApp
 } from '@/lib/whatsappHelper';
 
-// Taskati Components
+// Components
 import OverviewChart from '@/components/OverviewChart';
 import TaskListBox from '@/components/TaskListBox';
 import InProgressCard from '@/components/InProgressCard';
 import YearlyProgressDonut from '@/components/YearlyProgressDonut';
+import DailyProgressCard from '@/components/DailyProgressCard';
 import MainHabitsRow from '@/components/MainHabitsRow';
 import TaskCard from '@/components/TaskCard';
+
+// Sub-Views for Sidebar
+import ProjectsView from '@/components/views/ProjectsView';
+import MyTasksView from '@/components/views/MyTasksView';
+import CalendarView from '@/components/views/CalendarView';
+import ReportView from '@/components/views/ReportView';
 
 // Modals
 import DhikrModal from '@/components/DhikrModal';
@@ -51,10 +58,11 @@ import {
   X,
   Plus,
   Clock,
-  BookOpen,
-  Hash,
   Menu,
-  ChevronDown
+  ChevronDown,
+  ShieldCheck,
+  Check,
+  Layers
 } from 'lucide-react';
 
 const STORAGE_KEY = 'oneday_daily_tasks_v2';
@@ -68,14 +76,15 @@ export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [streak, setStreak] = useState<number>(18);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'completed' | 'spiritual' | 'learning'>('all');
-  const [activeNav, setActiveNav] = useState<'dashboard' | 'projects' | 'tasks' | 'calendar' | 'report' | 'messages' | 'settings'>('dashboard');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'completed'>('all');
+  const [activeNav, setActiveNav] = useState<'dashboard' | 'projects' | 'tasks' | 'calendar' | 'report'>('dashboard');
 
   // Language & Theme
   const [language, setLanguage] = useState<Language>('ml');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showFreeProModal, setShowFreeProModal] = useState(false);
 
   // Modals
   const [selectedCounterTask, setSelectedCounterTask] = useState<Task | null>(null);
@@ -103,7 +112,7 @@ export default function Home() {
     return () => window.removeEventListener('taskati-alert', handleToast);
   }, []);
 
-  // Initialize theme, language & tasks from localStorage
+  // Initialize theme, language & tasks
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -333,8 +342,6 @@ export default function Home() {
 
       if (activeFilter === 'pending') return !task.completed;
       if (activeFilter === 'completed') return task.completed;
-      if (activeFilter === 'spiritual') return task.category === 'spiritual';
-      if (activeFilter === 'learning') return task.category === 'learning';
       return true;
     });
   }, [tasks, searchQuery, activeFilter]);
@@ -372,12 +379,15 @@ export default function Home() {
       )}
 
       {/* ======================================================== */}
-      {/* 1. LEFT SIDEBAR (Matching Exact Taskati Layout)          */}
+      {/* 1. LEFT SIDEBAR                                          */}
       {/* ======================================================== */}
       <aside className="hidden lg:flex w-64 bg-white dark:bg-[#121528] border-r border-taskati-border dark:border-white/5 flex-col justify-between p-6 flex-shrink-0">
         <div className="space-y-8">
           {/* Logo: ONE DAY. */}
-          <div className="flex items-center gap-2">
+          <div
+            onClick={() => setActiveNav('dashboard')}
+            className="flex items-center gap-2 cursor-pointer"
+          >
             <span className="w-8 h-8 rounded-xl bg-taskati-blue text-white flex items-center justify-center font-black text-lg shadow-sm">
               1
             </span>
@@ -386,7 +396,7 @@ export default function Home() {
             </span>
           </div>
 
-          {/* Navigation Items matching Taskati image */}
+          {/* Navigation Items */}
           <nav className="space-y-1.5">
             {[
               { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard },
@@ -394,8 +404,6 @@ export default function Home() {
               { id: 'tasks', label: t.myTasks, icon: CheckSquare },
               { id: 'calendar', label: t.calendar, icon: CalendarDays },
               { id: 'report', label: t.report, icon: BarChart3 },
-              { id: 'messages', label: t.messages, icon: MessageSquare, onClick: () => setIsPhoneModalOpen(true) },
-              { id: 'settings', label: t.settings, icon: Settings, onClick: () => setIsAutoModalOpen(true) },
             ].map((item) => {
               const Icon = item.icon;
               const isActive = activeNav === item.id;
@@ -405,7 +413,6 @@ export default function Home() {
                   onClick={() => {
                     triggerHaptic([20]);
                     setActiveNav(item.id as any);
-                    if (item.onClick) item.onClick();
                   }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
                     isActive
@@ -419,6 +426,30 @@ export default function Home() {
               );
             })}
 
+            {/* Messages / WhatsApp Button */}
+            <button
+              onClick={() => {
+                triggerHaptic([20]);
+                setIsPhoneModalOpen(true);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white hover:bg-taskati-bg dark:hover:bg-white/5 transition-all"
+            >
+              <MessageSquare className="w-4 h-4 text-emerald-500" />
+              <span>{t.messages}</span>
+            </button>
+
+            {/* Settings Button */}
+            <button
+              onClick={() => {
+                triggerHaptic([20]);
+                setIsAutoModalOpen(true);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white hover:bg-taskati-bg dark:hover:bg-white/5 transition-all"
+            >
+              <Settings className="w-4 h-4 text-amber-500" />
+              <span>{t.settings}</span>
+            </button>
+
             {/* Reset / Day Rollover Button */}
             <button
               onClick={handleResetDay}
@@ -430,20 +461,28 @@ export default function Home() {
           </nav>
         </div>
 
-        {/* Bottom Card: ONE DAY Pro (matching Taskati screenshot) */}
-        <div className="relative overflow-hidden rounded-3xl p-5 bg-gradient-to-br from-[#5051F9] via-[#6355F6] to-[#7B4EE4] text-white shadow-taskati space-y-3">
+        {/* Bottom Card: ONE DAY Lifetime Free Pro */}
+        <div
+          onClick={() => setShowFreeProModal(true)}
+          className="relative overflow-hidden rounded-3xl p-5 bg-gradient-to-br from-[#5051F9] via-[#6355F6] to-[#7B4EE4] text-white shadow-taskati space-y-3 cursor-pointer hover:scale-[1.02] transition-transform"
+        >
           <div className="w-9 h-9 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center font-black text-sm">
-            T.
+            ✓
           </div>
           <div>
-            <h4 className="text-sm font-bold tracking-tight">{t.proTitle}</h4>
-            <p className="text-[11px] text-white/80 leading-snug pt-0.5">{t.proDesc}</p>
+            <div className="flex items-center gap-1.5">
+              <h4 className="text-sm font-bold tracking-tight">ONE DAY Pro</h4>
+              <span className="text-[9px] font-black bg-emerald-400 text-emerald-950 px-1.5 py-0.5 rounded-md">FREE</span>
+            </div>
+            <p className="text-[11px] text-white/80 leading-snug pt-0.5">
+              {language === 'ml' ? '100% ലൈഫ് ടൈം സൗജന്യം' : '100% Lifetime Free Active'}
+            </p>
           </div>
           <button
-            onClick={() => setIsAutoModalOpen(true)}
-            className="w-full py-2 px-3 rounded-xl bg-white text-taskati-blue font-bold text-xs shadow-sm hover:bg-white/95 active:scale-95 transition-all text-center block"
+            type="button"
+            className="w-full py-2 px-3 rounded-xl bg-white text-taskati-blue font-bold text-xs shadow-sm hover:bg-white/95 text-center block"
           >
-            {t.getPro}
+            {language === 'ml' ? 'സജീവം (Active)' : 'Full Version Active'}
           </button>
         </div>
       </aside>
@@ -462,12 +501,15 @@ export default function Home() {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <span className="text-lg font-black tracking-tight text-taskati-navy dark:text-white">
+            <span
+              onClick={() => setActiveNav('dashboard')}
+              className="text-lg font-black tracking-tight text-taskati-navy dark:text-white cursor-pointer"
+            >
               ONE DAY<span className="text-taskati-blue">.</span>
             </span>
           </div>
 
-          {/* Search Box matching screenshot */}
+          {/* Search Box */}
           <div className="hidden sm:flex items-center gap-2 flex-1 max-w-md bg-taskati-bg dark:bg-[#181C33] px-3.5 py-2 rounded-2xl border border-taskati-border/60 dark:border-white/5 focus-within:border-taskati-blue">
             <Search className="w-4 h-4 text-taskati-muted dark:text-gray-400" />
             <input
@@ -481,7 +523,7 @@ export default function Home() {
 
           {/* Right Header Controls */}
           <div className="flex items-center gap-2.5 sm:gap-3.5">
-            {/* Language Selector Dropdown */}
+            {/* Language Selector */}
             <div className="relative">
               <button
                 onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
@@ -560,215 +602,265 @@ export default function Home() {
         {/* Mobile Navigation Drawer */}
         {isMobileMenuOpen && (
           <div className="lg:hidden bg-white dark:bg-[#121528] border-b border-taskati-border dark:border-white/10 p-4 space-y-2 animate-pop">
-            <div className="flex items-center gap-2 pb-2 border-b border-taskati-border/60 dark:border-white/5">
-              <span className="text-sm font-bold text-taskati-navy dark:text-white">
-                {t.greeting}
-              </span>
-            </div>
             {[
               { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard },
               { id: 'projects', label: t.projects, icon: FolderKanban },
               { id: 'tasks', label: t.myTasks, icon: CheckSquare },
-              { id: 'messages', label: t.quickWhatsApp, icon: MessageSquare, onClick: () => setIsPhoneModalOpen(true) },
-              { id: 'settings', label: t.settings, icon: Settings, onClick: () => setIsAutoModalOpen(true) },
+              { id: 'calendar', label: t.calendar, icon: CalendarDays },
+              { id: 'report', label: t.report, icon: BarChart3 },
             ].map((item) => (
               <button
                 key={item.id}
                 onClick={() => {
+                  setActiveNav(item.id as any);
                   setIsMobileMenuOpen(false);
-                  if (item.onClick) item.onClick();
                 }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-taskati-navy dark:text-white hover:bg-taskati-bg dark:hover:bg-white/5"
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeNav === item.id
+                    ? 'bg-taskati-blue text-white'
+                    : 'text-taskati-navy dark:text-white hover:bg-taskati-bg dark:hover:bg-white/5'
+                }`}
               >
-                <item.icon className="w-4 h-4 text-taskati-blue" />
+                <item.icon className="w-4 h-4" />
                 <span>{item.label}</span>
               </button>
             ))}
           </div>
         )}
 
-        {/* PWA Install Prompt */}
+        {/* PWA Prompt */}
         <div className="px-4 sm:px-8 pt-4">
           <InstallPwaPrompt />
         </div>
 
         {/* ======================================================== */}
-        {/* 3. TASKATI DASHBOARD GRID (Matching Screenshot)          */}
+        {/* 3. DYNAMIC CONTENT: SWITCHES BASED ON ACTIVE TAB         */}
         {/* ======================================================== */}
         <main className="px-4 sm:px-8 py-6 space-y-6">
-          {/* Main 3-Column Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* ---------------------------------------------------- */}
-            {/* LEFT 2 COLUMNS (Overview + Task Boxes + Habits)     */}
-            {/* ---------------------------------------------------- */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* 1. Overview Chart */}
-              <OverviewChart tasks={tasks} language={language} />
+          {/* TAB 1: PROJECTS & ROUTINES VIEW */}
+          {activeNav === 'projects' && (
+            <ProjectsView
+              tasks={tasks}
+              language={language}
+              onToggle={handleToggleTask}
+              onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+              onOpenReading={(tk) => setSelectedReadingTask(tk)}
+              onAddNew={() => setIsAddModalOpen(true)}
+            />
+          )}
 
-              {/* 2. Middle Row: 2 Task Boxes */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                {/* Daily Task Box (Spiritual Routines) */}
-                <TaskListBox
-                  title={t.dailyTaskTitle}
-                  tasks={spiritualTasks.slice(0, 5)}
-                  language={language}
-                  onToggle={handleToggleTask}
-                  onAddNew={() => setIsAddModalOpen(true)}
-                  onOpenCounter={(tk) => setSelectedCounterTask(tk)}
-                />
+          {/* TAB 2: MY TASKS VIEW */}
+          {activeNav === 'tasks' && (
+            <MyTasksView
+              tasks={tasks}
+              language={language}
+              onToggle={handleToggleTask}
+              onDelete={handleDeleteTask}
+              onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+              onOpenReading={(tk) => setSelectedReadingTask(tk)}
+              onAddNew={() => setIsAddModalOpen(true)}
+            />
+          )}
 
-                {/* Weekly Task Box (Learning & Reading) */}
-                <TaskListBox
-                  title={t.weeklyTaskTitle}
-                  tasks={learningTasks}
-                  language={language}
-                  onToggle={handleToggleTask}
-                  onAddNew={() => setIsAddModalOpen(true)}
-                  onOpenReading={(tk) => setSelectedReadingTask(tk)}
-                />
-              </div>
+          {/* TAB 3: CALENDAR VIEW */}
+          {activeNav === 'calendar' && (
+            <CalendarView
+              tasks={tasks}
+              language={language}
+              streak={streak}
+            />
+          )}
 
-              {/* 3. Main Habits (Yearly) Squircle Row */}
-              <MainHabitsRow
-                tasks={tasks}
-                language={language}
-                onOpenCounter={(tk) => setSelectedCounterTask(tk)}
-                onOpenReading={(tk) => setSelectedReadingTask(tk)}
-              />
-            </div>
+          {/* TAB 4: REPORT VIEW */}
+          {activeNav === 'report' && (
+            <ReportView
+              tasks={tasks}
+              language={language}
+              streak={streak}
+              onOpenPhoneModal={() => setIsPhoneModalOpen(true)}
+            />
+          )}
 
-            {/* ---------------------------------------------------- */}
-            {/* RIGHT 1 COLUMN (In Progress + Donut + WhatsApp)      */}
-            {/* ---------------------------------------------------- */}
-            <div className="space-y-6">
-              {/* 1. In Progress Card */}
-              <InProgressCard
-                tasks={tasks}
-                language={language}
-                onOpenCounter={(tk) => setSelectedCounterTask(tk)}
-                onOpenReading={(tk) => setSelectedReadingTask(tk)}
-                onAddNew={() => setIsAddModalOpen(true)}
-              />
+          {/* TAB 0: PRIMARY DASHBOARD VIEW */}
+          {activeNav === 'dashboard' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* ---------------------------------------------------- */}
+              {/* LEFT 2 COLUMNS: Overview Graph + Compact Task Boxes  */}
+              {/* ---------------------------------------------------- */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* 1. Overview Graph (Modern Curved Wave Area Spline) */}
+                <OverviewChart tasks={tasks} language={language} />
 
-              {/* 2. Yearly Progress Donut */}
-              <YearlyProgressDonut
-                completed={completedCount}
-                total={totalCount}
-                language={language}
-              />
+                {/* 2. Middle Row: Side-by-Side Boxes matching exact Daily Task size! */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  {/* BOX A: Daily Task (Vibrant Colors: Blue, Rose, White, Violet, Dark Blue) */}
+                  <TaskListBox
+                    title={t.dailyTaskTitle}
+                    tasks={spiritualTasks.slice(0, 5)}
+                    language={language}
+                    onToggle={handleToggleTask}
+                    onAddNew={() => setIsAddModalOpen(true)}
+                    onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+                  />
 
-              {/* 3. WhatsApp & SMS Reports Quick Dispatch Card */}
-              <div className="bg-white dark:bg-[#181C33] rounded-3xl p-5 border border-taskati-border dark:border-white/10 shadow-taskati-card space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-taskati-navy dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-                    <MessageSquare className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>{t.quickWhatsApp}</span>
-                  </h4>
-                  <button
-                    onClick={() => setIsPhoneModalOpen(true)}
-                    className="text-[10px] font-bold text-taskati-blue hover:underline"
-                  >
-                    {t.managePhone}
-                  </button>
+                  {/* BOX B: Daily Routine Overview (Compact Box with exact 4-Capsule Themes from uploaded image!) */}
+                  <div className="bg-white dark:bg-[#181C33] rounded-3xl p-5 border border-taskati-border dark:border-white/10 shadow-taskati-card flex flex-col justify-between space-y-3.5 transition-colors">
+                    {/* Header matching Daily Task box size */}
+                    <div className="flex items-center justify-between pb-2 border-b border-taskati-border/60 dark:border-white/5">
+                      <div className="flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-taskati-blue" />
+                        <h4 className="text-xs font-bold text-taskati-navy dark:text-white uppercase tracking-wider">
+                          {language === 'ml' ? 'ദിനചര്യ അവലോകനം (Overview)' : 'Routine Overview'}
+                        </h4>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full bg-taskati-blue text-white text-[10px] font-bold font-mono">
+                        {completedCount}/{totalCount}
+                      </span>
+                    </div>
+
+                    {/* Compact Scrollable List of the 4 Capsule Bars from the photo */}
+                    <div className="space-y-2.5 flex-1 max-h-[300px] overflow-y-auto pr-1">
+                      {filteredTasks.map((task) => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          language={language}
+                          onToggle={handleToggleTask}
+                          onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+                          onOpenReading={(tk) => setSelectedReadingTask(tk)}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="pt-2 flex items-center justify-between border-t border-taskati-border/60 dark:border-white/5 text-[11px] text-taskati-muted dark:text-gray-400">
+                      <span>{language === 'ml' ? 'ക്ലിക്ക് ചെയ്ത് പൂർത്തിയാക്കാം' : 'Tap capsule to complete'}</span>
+                      <span className="font-bold text-taskati-blue">{Math.round((completedCount / totalCount) * 100)}%</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-2 pt-1">
-                  {/* Button 1: Send Completed */}
-                  <button
-                    onClick={handleQuickSendCompleted}
-                    className="w-full py-2.5 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>
-                      {language === 'ml'
-                        ? `പൂർത്തിയായവ (${completedCount}) WhatsApp`
-                        : `${t.sendCompleted} (${completedCount})`}
-                    </span>
-                  </button>
+                {/* 3. Weekly Task Box & Habits */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <TaskListBox
+                    title={t.weeklyTaskTitle}
+                    tasks={learningTasks}
+                    language={language}
+                    onToggle={handleToggleTask}
+                    onAddNew={() => setIsAddModalOpen(true)}
+                    onOpenReading={(tk) => setSelectedReadingTask(tk)}
+                  />
 
-                  {/* Button 2: Send Pending */}
-                  <button
-                    onClick={handleQuickSendPending}
-                    className="w-full py-2.5 px-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm"
-                  >
-                    <AlertTriangle className="w-4 h-4" />
-                    <span>
-                      {language === 'ml'
-                        ? `ബാക്കിയുള്ളവ (${pendingCount}) WhatsApp`
-                        : `${t.sendPending} (${pendingCount})`}
-                    </span>
-                  </button>
+                  <div className="bg-white dark:bg-[#181C33] rounded-3xl p-5 border border-taskati-border dark:border-white/10 shadow-taskati-card flex flex-col justify-between">
+                    <div className="flex items-center justify-between pb-2 border-b border-taskati-border/60 dark:border-white/5">
+                      <h4 className="text-xs font-bold text-taskati-navy dark:text-white uppercase tracking-wider">
+                        {language === 'ml' ? 'തുടർച്ചയായ പുരോഗതി' : 'Consistency Streak'}
+                      </h4>
+                      <span className="text-[10px] font-bold text-amber-500 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-full">
+                        🔥 {streak} {language === 'ml' ? 'ദിവസം' : 'Days'}
+                      </span>
+                    </div>
+                    <div className="py-4 text-center space-y-1">
+                      <p className="text-2xl font-black text-taskati-navy dark:text-white">
+                        {completedCount} / {totalCount}
+                      </p>
+                      <p className="text-xs text-taskati-muted">
+                        {language === 'ml' ? 'ഇന്നത്തെ ദിനചര്യകൾ പൂർത്തിയായി' : 'Routines Completed Today'}
+                      </p>
+                    </div>
+                    <div className="pt-2 border-t border-taskati-border/60 dark:border-white/5 text-center">
+                      <span className="text-xs font-bold text-taskati-blue hover:underline cursor-pointer" onClick={() => setActiveNav('report')}>
+                        {language === 'ml' ? 'കൂടുതൽ റിപ്പോർട്ടുകൾ കാണുക →' : 'View Full Report →'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Main Habits 4 Squircle Cards */}
+                <MainHabitsRow
+                  tasks={tasks}
+                  language={language}
+                  onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+                  onOpenReading={(tk) => setSelectedReadingTask(tk)}
+                />
+              </div>
+
+              {/* ---------------------------------------------------- */}
+              {/* RIGHT 1 COLUMN: Daily Progress + Yearly Donut + More */}
+              {/* ---------------------------------------------------- */}
+              <div className="space-y-6">
+                {/* 1. DAILY PROGRESS GRAPH (Alongside Yearly Progress) */}
+                <DailyProgressCard
+                  tasks={tasks}
+                  language={language}
+                  streak={streak}
+                />
+
+                {/* 2. YEARLY PROGRESS DONUT */}
+                <YearlyProgressDonut
+                  completed={completedCount}
+                  total={totalCount}
+                  language={language}
+                />
+
+                {/* 3. IN PROGRESS CAPSULES */}
+                <InProgressCard
+                  tasks={tasks}
+                  language={language}
+                  onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+                  onOpenReading={(tk) => setSelectedReadingTask(tk)}
+                  onAddNew={() => setIsAddModalOpen(true)}
+                />
+
+                {/* 4. WHATSAPP & SMS QUICK DISPATCH */}
+                <div className="bg-white dark:bg-[#181C33] rounded-3xl p-5 border border-taskati-border dark:border-white/10 shadow-taskati-card space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-taskati-navy dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>{t.quickWhatsApp}</span>
+                    </h4>
+                    <button
+                      onClick={() => setIsPhoneModalOpen(true)}
+                      className="text-[10px] font-bold text-taskati-blue hover:underline"
+                    >
+                      {t.managePhone}
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <button
+                      onClick={handleQuickSendCompleted}
+                      className="w-full py-2.5 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>
+                        {language === 'ml'
+                          ? `പൂർത്തിയായവ (${completedCount}) WhatsApp`
+                          : `${t.sendCompleted} (${completedCount})`}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={handleQuickSendPending}
+                      className="w-full py-2.5 px-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm"
+                    >
+                      <AlertTriangle className="w-4 h-4" />
+                      <span>
+                        {language === 'ml'
+                          ? `ബാക്കിയുള്ളവ (${pendingCount}) WhatsApp`
+                          : `${t.sendPending} (${pendingCount})`}
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* ======================================================== */}
-          {/* 4. LOWER SECTION: ALL 13 ROUTINES IN COLORFUL CAPSULES  */}
-          {/* ======================================================== */}
-          <section className="bg-white dark:bg-[#181C33] rounded-3xl p-6 border border-taskati-border dark:border-white/10 shadow-taskati-card space-y-5">
-            {/* Header & Filter Pills */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-taskati-border/60 dark:border-white/5">
-              <div>
-                <h3 className="text-base font-bold text-taskati-navy dark:text-white flex items-center gap-2">
-                  <span>{t.routinesCapsules}</span>
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-taskati-blue/10 text-taskati-blue">
-                    {completedCount}/{totalCount}
-                  </span>
-                </h3>
-                <p className="text-[11px] text-taskati-muted dark:text-gray-400">
-                  {language === 'ml'
-                    ? '13 ദിനചര്യകളുടെയും വർണ്ണാഭമായ പുരോഗതി ബാറുകൾ'
-                    : '13 Daily Routines with colorful progress capsule bars'}
-                </p>
-              </div>
-
-              {/* Filter Pills */}
-              <div className="flex flex-wrap items-center gap-1.5 bg-taskati-bg dark:bg-[#121528] p-1 rounded-2xl border border-taskati-border/60 dark:border-white/5 text-[11px] font-bold">
-                {(['all', 'pending', 'completed', 'spiritual', 'learning'] as const).map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setActiveFilter(f)}
-                    className={`px-3 py-1 rounded-xl transition-all ${
-                      activeFilter === f
-                        ? 'bg-taskati-blue text-white shadow-xs'
-                        : 'text-taskati-muted dark:text-gray-400 hover:text-taskati-navy dark:hover:text-white'
-                    }`}
-                  >
-                    {f === 'all'
-                      ? `${t.all} (${totalCount})`
-                      : f === 'pending'
-                      ? `${t.pending} (${pendingCount})`
-                      : f === 'completed'
-                      ? `${t.completed} (${completedCount})`
-                      : f === 'spiritual'
-                      ? t.spiritual
-                      : t.learning}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* List of Colorful Capsule Bars matching image */}
-            <div className="space-y-3.5">
-              {filteredTasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  language={language}
-                  onToggle={handleToggleTask}
-                  onOpenCounter={(tk) => setSelectedCounterTask(tk)}
-                  onOpenReading={(tk) => setSelectedReadingTask(tk)}
-                  onDelete={handleDeleteTask}
-                />
-              ))}
-            </div>
-          </section>
+          )}
         </main>
       </div>
 
       {/* ======================================================== */}
-      {/* 5. MODALS & POPUPS                                       */}
+      {/* 4. MODALS & POPUPS                                       */}
       {/* ======================================================== */}
       {/* 100x Dhikr Counter Modal */}
       {selectedCounterTask && (
@@ -820,6 +912,35 @@ export default function Home() {
           language={language}
           onClose={() => setIsAutoModalOpen(false)}
         />
+      )}
+
+      {/* Lifetime Free Version Confirmation Modal */}
+      {showFreeProModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-pop">
+          <div className="bg-white dark:bg-[#181C33] rounded-3xl max-w-sm w-full p-6 text-center space-y-4 border border-taskati-border dark:border-white/10 shadow-2xl">
+            <div className="w-14 h-14 rounded-3xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center font-black">
+              <ShieldCheck className="w-8 h-8" />
+            </div>
+
+            <div>
+              <h3 className="text-lg font-black text-taskati-navy dark:text-white">
+                {language === 'ml' ? '100% സൗജന്യ ഫുൾ വേർഷൻ സജീവം' : 'Lifetime Free Version Active'}
+              </h3>
+              <p className="text-xs text-taskati-muted dark:text-gray-400 pt-1 leading-relaxed">
+                {language === 'ml'
+                  ? 'ഈ ആപ്പ് നിങ്ങൾക്ക് ദീർഘകാലത്തേക്ക് യാതൊരു പണമോ സബ്‌സ്‌ക്രിപ്‌ഷനോ ഇല്ലാതെ സൗജന്യമായി ഉപയോഗിക്കാം. ഓഫ്‌ലൈൻ വർക്കിംഗ്, 100x ദിക്റ് കൗണ്ടർ, ഓട്ടോ നോട്ടിഫിക്കേഷൻ, വാട്സാപ്പ് റിപ്പോർട്ടുകൾ എന്നിവയെല്ലാം പൂർണ്ണമായും അൺലോക്ക് ചെയ്തിട്ടുണ്ട്.'
+                  : 'This application is permanently free with no subscriptions or trial limits. Offline storage, Dhikr counters, automated alerts, and WhatsApp reports are all fully unlocked forever.'}
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowFreeProModal(false)}
+              className="w-full py-3 rounded-2xl bg-taskati-blue text-white font-bold text-xs shadow-taskati hover:bg-taskati-blue-hover active:scale-95 transition-all"
+            >
+              {language === 'ml' ? 'ശരി, മനസ്സിലായി' : 'Got it!'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
