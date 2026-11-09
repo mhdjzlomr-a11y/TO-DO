@@ -161,7 +161,7 @@ export default function MyTasksView({
                       <span
                         className={`text-xs sm:text-sm font-bold truncate ${
                           task.completed
-                            ? 'line-through text-taskati-muted dark:text-gray-500'
+                            ? 'text-emerald-600 dark:text-emerald-400'
                             : 'text-taskati-navy dark:text-white'
                         }`}
                       >

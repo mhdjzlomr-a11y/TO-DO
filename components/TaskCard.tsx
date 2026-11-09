@@ -138,7 +138,7 @@ export default function TaskCard({
 
           {/* Title in White Text */}
           <div className="min-w-0 truncate">
-            <span className={`text-xs sm:text-sm font-bold text-white tracking-wide truncate block drop-shadow-2xs ${task.completed ? 'line-through opacity-85' : ''}`}>
+            <span className={`text-xs sm:text-sm font-bold text-white tracking-wide truncate block drop-shadow-2xs ${task.completed ? 'opacity-95' : ''}`}>
               {displayTitle}
             </span>
           </div>

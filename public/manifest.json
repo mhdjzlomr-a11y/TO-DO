@@ -1,13 +1,13 @@
 {
-  "name": "ONE DAY. - Daily Task & Routine Tracker",
+  "name": "ONE DAY - Daily Task & Routine Tracker",
   "short_name": "ONE DAY",
   "description": "Daily spiritual routines, Dhikr counters, reading options, time schedules, and automated alerts.",
   "start_url": "/",
   "id": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#F4F6FC",
-  "theme_color": "#5051F9",
+  "background_color": "#F8F9FD",
+  "theme_color": "#FF4B8B",
   "orientation": "any",
   "categories": ["productivity", "lifestyle", "utilities"],
   "icons": [

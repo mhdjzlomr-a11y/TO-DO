@@ -60,7 +60,8 @@ import {
   ChevronDown,
   ShieldCheck,
   Check,
-  Send
+  Send,
+  RotateCcw
 } from 'lucide-react';
 
 const STORAGE_KEY = 'oneday_daily_tasks_v2';
@@ -82,6 +83,7 @@ export default function Home() {
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showFreeProModal, setShowFreeProModal] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
 
   // Modals
   const [selectedCounterTask, setSelectedCounterTask] = useState<Task | null>(null);
@@ -289,17 +291,32 @@ export default function Home() {
   };
 
   // Reset Day Rollover
-  const handleResetDay = () => {
-    if (confirm(language === 'ml' ? 'ഇന്നത്തെ എല്ലാ ടാസ്കുകളും റീസെറ്റ് ചെയ്യണോ?' : 'Reset all routines for today?')) {
-      const reset = tasks.map((t) => ({
-        ...t,
-        completed: false,
-        counterCurrent: t.type === 'counter' ? 0 : t.counterCurrent,
-        readingDetails: t.readingDetails ? { ...t.readingDetails, minutesSpent: 0 } : undefined
-      }));
-      saveTasks(reset);
-      triggerHaptic([50, 50]);
+  const handleResetToday = () => {
+    const reset = tasks.map((t) => ({
+      ...t,
+      completed: false,
+      counterCurrent: t.type === 'counter' ? 0 : t.counterCurrent,
+      readingDetails: t.readingDetails ? { ...t.readingDetails, minutesSpent: 0 } : undefined
+    }));
+    saveTasks(reset);
+    triggerHaptic([50, 50]);
+    setShowResetModal(false);
+  };
+
+  const handleFullFactoryReset = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STREAK_KEY);
+      localStorage.removeItem(LAST_DATE_KEY);
     }
+    setTasks(DEFAULT_TASKS);
+    setStreak(18);
+    triggerHaptic([80, 80, 80]);
+    setShowResetModal(false);
+  };
+
+  const handleResetDay = () => {
+    setShowResetModal(true);
   };
 
   // Quick WhatsApp Dispatch
@@ -429,11 +446,11 @@ export default function Home() {
 
             {/* Reset / Day Rollover Button */}
             <button
-              onClick={handleResetDay}
+              onClick={() => setShowResetModal(true)}
               className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all pt-3 border-t border-gray-100 dark:border-white/5"
             >
-              <LogOut className="w-4 h-4" />
-              <span>{t.signOut}</span>
+              <RotateCcw className="w-4 h-4" />
+              <span>{language === 'ml' ? 'മൊത്തം റീസെറ്റ്' : 'Reset All'}</span>
             </button>
           </nav>
         </div>
@@ -445,7 +462,7 @@ export default function Home() {
             className="p-4 rounded-2xl bg-gradient-to-br from-[#7A5AF8] to-[#5925DC] text-white shadow-sm space-y-2 cursor-pointer hover:scale-[1.02] transition-transform"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black">ONE DAY Pro</span>
+              <span className="text-xs font-black">oneday Pro</span>
               <span className="text-[9px] font-black bg-emerald-400 text-emerald-950 px-1.5 py-0.5 rounded-md">FREE</span>
             </div>
             <p className="text-[10px] text-white/80 leading-tight">
@@ -538,6 +555,16 @@ export default function Home() {
                   <span className="hidden sm:inline">Dark</span>
                 </>
               )}
+            </button>
+
+            {/* Reset All Button */}
+            <button
+              onClick={() => setShowResetModal(true)}
+              className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-gray-50 dark:bg-[#181C33] border border-gray-200 dark:border-white/5 text-xs font-bold text-rose-500 hover:border-rose-400 transition-all flex items-center gap-1.5"
+              title={language === 'ml' ? 'റീസെറ്റ് ഓപ്ഷനുകൾ' : 'Reset Options'}
+            >
+              <RotateCcw className="w-4 h-4 text-rose-500" />
+              <span className="hidden sm:inline">{language === 'ml' ? 'റീസെറ്റ്' : 'Reset'}</span>
             </button>
 
             {/* Notification Bell matching image */}
@@ -687,8 +714,10 @@ export default function Home() {
                   <LectorTimelineCard
                     tasks={tasks}
                     language={language}
+                    streak={streak}
                     onToggle={handleToggleTask}
                     onOpenCounter={(tk) => setSelectedCounterTask(tk)}
+                    onOpenReading={(tk) => setSelectedReadingTask(tk)}
                   />
                 </div>
 
@@ -801,6 +830,84 @@ export default function Home() {
           language={language}
           onClose={() => setIsAutoModalOpen(false)}
         />
+      )}
+
+      {/* Reset Confirmation Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-pop">
+          <div className="bg-white dark:bg-[#151932] rounded-3xl max-w-md w-full p-6 space-y-5 border border-gray-100 dark:border-white/10 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-500 flex items-center justify-center">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-gray-900 dark:text-white">
+                    {language === 'ml' ? 'റീസെറ്റ് ഓപ്ഷനുകൾ' : 'Reset Options'}
+                  </h3>
+                  <p className="text-[11px] text-gray-400">
+                    {language === 'ml' ? 'ആവശ്യമായ റീസെറ്റ് ഓപ്ഷൻ തെരഞ്ഞെടുക്കുക' : 'Choose which reset you want to perform'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowResetModal(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-500 hover:text-gray-900 dark:hover:text-white transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              {/* Option 1: Reset Today Only */}
+              <div
+                onClick={handleResetToday}
+                className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-500/20 hover:border-amber-400 cursor-pointer transition-all space-y-1 group"
+              >
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-amber-900 dark:text-amber-300 group-hover:text-amber-600 dark:group-hover:text-amber-200 transition-colors">
+                    {language === 'ml' ? '1. ഇന്നത്തെ റൂട്ടീനുകൾ മാത്രം റീസെറ്റ് ചെയ്യുക' : '1. Reset Today\'s Routines Only'}
+                  </h4>
+                  <span className="text-[10px] font-bold bg-amber-200 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 px-2 py-0.5 rounded-full">
+                    {language === 'ml' ? 'ഇന്ന്' : 'Today'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-800/80 dark:text-amber-200/70 leading-relaxed">
+                  {language === 'ml'
+                    ? 'ഇന്നത്തെ ടിക്ക് മാർക്കുകളും ദിക്റ് എണ്ണങ്ങളും വീണ്ടും പൂജ്യത്തിൽ നിന്ന് തുടങ്ങാൻ ഇത് സഹായിക്കും. സ്ട്രീക്കും മറ്റ് വിവരങ്ങളും നഷ്ടപ്പെടില്ല.'
+                    : 'Unchecks all routines and resets today\'s counters to 0. Streak and custom routines are kept.'}
+                </p>
+              </div>
+
+              {/* Option 2: Full Factory Reset */}
+              <div
+                onClick={handleFullFactoryReset}
+                className="p-4 rounded-2xl bg-rose-50/70 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-500/20 hover:border-rose-400 cursor-pointer transition-all space-y-1 group"
+              >
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-rose-900 dark:text-rose-300 group-hover:text-rose-600 dark:group-hover:text-rose-200 transition-colors">
+                    {language === 'ml' ? '2. മൊത്തം ഫാക്ടറി റീസെറ്റ് (Full Factory Reset)' : '2. Full Factory Reset'}
+                  </h4>
+                  <span className="text-[10px] font-bold bg-rose-200 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200 px-2 py-0.5 rounded-full">
+                    {language === 'ml' ? 'മൊത്തം' : 'All Data'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-rose-800/80 dark:text-rose-200/70 leading-relaxed">
+                  {language === 'ml'
+                    ? 'എല്ലാ വിവരങ്ങളും റീസെറ്റ് ചെയ്ത് യഥാർത്ഥ 13 റൂട്ടീനുകളിലേക്ക് പുതിയതായി പുനഃസ്ഥാപിക്കും.'
+                    : 'Resets all routines, cached progress, and streak back to the pristine default 13 daily routines.'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowResetModal(false)}
+              className="w-full py-2.5 rounded-xl bg-gray-100 dark:bg-white/10 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/15 transition-all"
+            >
+              {language === 'ml' ? 'റദ്ദാക്കുക' : 'Cancel'}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Lifetime Free Version Confirmation Modal */}

@@ -138,7 +138,7 @@ export default function TaskListBox({
                 {/* Title */}
                 <span
                   className={`text-xs font-bold truncate transition-colors ${style.text} ${
-                    task.completed ? 'line-through opacity-70' : ''
+                    task.completed ? 'opacity-85' : ''
                   }`}
                 >
                   {displayTitle}

@@ -151,7 +151,7 @@ export default function CalendarView({
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className={`font-bold truncate ${task.completed ? 'line-through text-taskati-muted' : 'text-taskati-navy dark:text-white'}`}>
+                  <p className={`font-bold truncate ${task.completed ? 'text-emerald-600 dark:text-emerald-400' : 'text-taskati-navy dark:text-white'}`}>
                     {language === 'ml' && task.malayalamTitle ? task.malayalamTitle : task.title}
                   </p>
                   <p className="text-[10px] text-taskati-muted font-mono">{task.time}</p>

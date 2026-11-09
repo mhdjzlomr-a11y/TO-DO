@@ -2,7 +2,7 @@ export type Language = 'en' | 'ml' | 'ar';
 
 export const TRANSLATIONS: Record<Language, Record<string, string>> = {
   en: {
-    appName: 'ONE DAY.',
+    appName: 'ONE DAY',
     greeting: 'Assalamu Alaikum 👋',
     dashboard: 'Dashboard',
     projects: 'Projects',
@@ -75,7 +75,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     routinesCapsules: 'Daily Routines Overview',
   },
   ml: {
-    appName: 'ONE DAY.',
+    appName: 'ONE DAY',
     greeting: 'അസ്സലാമു അലൈക്കും 👋',
     dashboard: 'ഡാഷ്‌ബോർഡ്',
     projects: 'പ്രൊജക്ടുകൾ',
@@ -148,7 +148,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     routinesCapsules: 'ദിവസേനയുള്ള എല്ലാ ദിനചര്യകളും (Capsules)',
   },
   ar: {
-    appName: 'ONE DAY.',
+    appName: 'ONE DAY',
     greeting: 'السلام عليكم ورحمة الله 👋',
     dashboard: 'الرئيسية',
     projects: 'المشاريع',
