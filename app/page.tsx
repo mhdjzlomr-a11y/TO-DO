@@ -17,6 +17,8 @@ import AddTaskModal from '@/components/AddTaskModal';
 import NotificationBanner from '@/components/NotificationBanner';
 import InstallPwaPrompt from '@/components/InstallPwaPrompt';
 import PhoneNotificationModal from '@/components/PhoneNotificationModal';
+import AutoNotificationSettingsModal from '@/components/AutoNotificationSettingsModal';
+import { AutoNotificationEngine } from '@/lib/autoNotificationEngine';
 import {
   Search,
   Plus,
@@ -39,7 +41,8 @@ import {
   BellRing,
   X,
   Send,
-  AlertTriangle
+  AlertTriangle,
+  Zap
 } from 'lucide-react';
 
 const STORAGE_KEY = 'taskati_daily_tasks_v1';
@@ -65,6 +68,7 @@ export default function Home() {
   const [selectedReadingTask, setSelectedReadingTask] = useState<Task | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
+  const [isAutoModalOpen, setIsAutoModalOpen] = useState(false);
   const [activeToast, setActiveToast] = useState<{ title: string; body: string } | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -186,33 +190,12 @@ export default function Home() {
     }
   };
 
-  // Scheduled Notification Watcher
+  // Automatic Notification Engine Initializer & Watcher
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const interval = setInterval(() => {
-      const now = new Date();
-      const currentHours = String(now.getHours()).padStart(2, '0');
-      const currentMins = String(now.getMinutes()).padStart(2, '0');
-      const currentTimeStr = `${currentHours}:${currentMins}`;
-
-      tasks.forEach((item) => {
-        if (!item.completed && item.time === currentTimeStr) {
-          const notifiedKey = `notified_${item.id}_${new Date().toISOString().split('T')[0]}_${currentTimeStr}`;
-          if (!sessionStorage.getItem(notifiedKey)) {
-            sessionStorage.setItem(notifiedKey, 'true');
-            const alertTitle = language === 'ml' && item.malayalamTitle ? item.malayalamTitle : item.title;
-            sendLocalNotification(
-              `⏰ ${t.todayRoutines}: ${alertTitle}`,
-              item.arabicTitle ? `${item.arabicTitle} - ${item.time}` : `${item.time} - ${alertTitle}`
-            );
-          }
-        }
-      });
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [tasks, language, t.todayRoutines]);
+    if (tasks.length > 0) {
+      AutoNotificationEngine.getInstance().init(tasks, language);
+    }
+  }, [tasks, language]);
 
   // Toggle Completion
   const handleToggleTask = (taskId: string) => {
@@ -522,6 +505,17 @@ export default function Home() {
             >
               <Phone className="w-3.5 h-3.5" />
               <span>{language === 'ml' ? 'ഫോൺ നമ്പർ' : 'Phone'}</span>
+            </button>
+
+            {/* Automatic Notification System Button */}
+            <button
+              onClick={() => setIsAutoModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-taskati-blue-light to-taskati-purple-light dark:from-[#1E2345] dark:to-[#2B1B36] border border-taskati-blue/30 text-taskati-blue dark:text-taskati-blue-light rounded-2xl shadow-taskati-card text-xs font-bold hover:opacity-90 transition-all active:scale-95 flex-shrink-0"
+              title="Automatic Notification System Status"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              <Zap className="w-3.5 h-3.5 text-taskati-blue fill-taskati-blue" />
+              <span>{language === 'ml' ? 'ഓട്ടോ അലർട്ട്' : 'Auto Alert'}</span>
             </button>
 
             {/* Language Toggle Button */}
@@ -992,6 +986,14 @@ export default function Home() {
           language={language}
           streak={streak}
           onClose={() => setIsPhoneModalOpen(false)}
+        />
+      )}
+
+      {isAutoModalOpen && (
+        <AutoNotificationSettingsModal
+          tasks={tasks}
+          language={language}
+          onClose={() => setIsAutoModalOpen(false)}
         />
       )}
     </div>
