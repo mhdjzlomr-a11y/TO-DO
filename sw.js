@@ -1,8 +1,9 @@
-const CACHE_NAME = 'oneday-pwa-v3';
+const CACHE_NAME = 'oneday-pwa-v4';
 const ASSETS = [
   './',
   './index.html',
   './css/styles.css',
+  './js/cloud.js',
   './js/app.js',
   './manifest.json',
   './icons/icon-192.png',
@@ -27,6 +28,17 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  const reqUrl = event.request.url || '';
+  if (
+    reqUrl.includes('googleapis.com') ||
+    reqUrl.includes('accounts.google.com') ||
+    reqUrl.includes('firebaseapp.com') ||
+    reqUrl.includes('firebaseio.com') ||
+    reqUrl.includes('script.google.com') ||
+    reqUrl.includes('script.googleusercontent.com')
+  ) {
+    return;
+  }
   // Network-first so latest updates always show immediately when online
   event.respondWith(
     fetch(event.request)

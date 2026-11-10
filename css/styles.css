@@ -825,6 +825,64 @@ button {
   }
 }
 
+/* Edit & Delete Compact Icon Buttons on Task Rows */
+.row-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.row-icon-btn:active {
+  transform: scale(0.9);
+}
+
+.row-icon-btn.edit:hover {
+  background-color: rgba(83, 118, 248, 0.15);
+  border-color: rgba(83, 118, 248, 0.4);
+}
+
+.row-icon-btn.delete:hover {
+  background-color: rgba(244, 63, 94, 0.15);
+  border-color: rgba(244, 63, 94, 0.4);
+}
+
+/* Cloud Sync Pill States */
+.cloud-sync-pill {
+  border-color: rgba(83, 118, 248, 0.35);
+}
+
+.cloud-sync-pill.synced {
+  background-color: rgba(18, 183, 106, 0.14);
+  border-color: rgba(18, 183, 106, 0.4);
+  color: #12B76A;
+}
+
+.cloud-sync-pill.syncing {
+  background-color: rgba(127, 68, 184, 0.14);
+  border-color: rgba(127, 68, 184, 0.4);
+  color: var(--violet);
+}
+
+.cloud-sync-pill.pending {
+  background-color: rgba(247, 144, 9, 0.14);
+  border-color: rgba(247, 144, 9, 0.4);
+  color: #D97706;
+}
+
+.cloud-sync-pill.error {
+  background-color: rgba(244, 63, 94, 0.14);
+  border-color: rgba(244, 63, 94, 0.4);
+  color: #F43F5E;
+}
+
 @media (max-width: 480px) {
   .hide-xs {
     display: none !important;

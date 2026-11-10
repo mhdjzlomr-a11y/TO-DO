@@ -349,24 +349,63 @@ function toggleAudioSound() {
   if (btn) btn.innerText = soundEnabled ? '🔊' : '🔇';
 }
 
+const VAULT_UPDATED_KEY = 'oneday_vault_updated_v2';
+const DELETED_IDS_KEY = 'oneday_deleted_ids_v2';
+const SETTINGS_UPDATED_KEY = 'oneday_settings_updated_v2';
+const syncChannel = (typeof BroadcastChannel !== 'undefined') ? new BroadcastChannel('oneday_sync_v1') : null;
+let _suppressSyncNotify = false;
+
+function getDeletedIdsLog() {
+  try {
+    const raw = localStorage.getItem(DELETED_IDS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function recordDeletedTaskId(taskId) {
+  if (!taskId) return;
+  const log = getDeletedIdsLog();
+  const now = new Date().toISOString();
+  const idx = log.findIndex((d) => d && d.id === taskId);
+  if (idx >= 0) log[idx].deletedAt = now;
+  else log.push({ id: taskId, deletedAt: now });
+  const cutoff = Date.now() - (180 * 24 * 60 * 60 * 1000);
+  const pruned = log.filter((d) => d && d.id && new Date(d.deletedAt || 0).getTime() > cutoff);
+  try {
+    localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(pruned));
+  } catch (_) {}
+}
+
 // ========================================================
 // 3. INITIALIZATION & LOCALSTORAGE MANAGEMENT
 // ========================================================
 function initApp() {
   // Load Theme
   const savedTheme = localStorage.getItem(THEME_KEY) || 'light';
-  applyTheme(savedTheme);
+  applyTheme(savedTheme, false);
 
   // Load Language
   const savedLang = localStorage.getItem(LANG_KEY) || 'ml';
   currentLang = savedLang;
   updateLanguageUI();
 
-  // Load Streak
+  // Load Tasks & Streak
+  loadLocalStateIntoMemory();
+
+  // Initial UI Render
+  refreshAllViews();
+
+  // Start Cross-Tab & Gmail Cloud Sync
+  setupOneDayCloudAndTabs();
+}
+
+function loadLocalStateIntoMemory() {
   const savedStreak = localStorage.getItem(STREAK_KEY);
   streak = savedStreak ? parseInt(savedStreak, 10) || 18 : 18;
 
-  // Load Tasks with Auto Midnight Date Rollover
   try {
     const todayStr = new Date().toISOString().split('T')[0];
     const savedDate = localStorage.getItem(LAST_DATE_KEY);
@@ -374,7 +413,6 @@ function initApp() {
 
     if (rawTasks) {
       const parsed = JSON.parse(rawTasks);
-      // Merge with default titles to ensure Malayalam and Arabic never disappear
       tasks = parsed.map((item) => {
         const def = DEFAULT_TASKS.find((d) => d.id === item.id);
         if (def) {
@@ -383,35 +421,42 @@ function initApp() {
             malayalamTitle: item.malayalamTitle || def.malayalamTitle,
             arabicTitle: item.arabicTitle || def.arabicTitle,
             subtitle: item.subtitle || def.subtitle,
-            time: item.time || def.time
+            time: item.time || def.time,
+            updatedAt: item.updatedAt || '2026-01-01T00:00:00.000Z'
           };
         }
-        return item;
+        return { ...item, updatedAt: item.updatedAt || '2026-01-01T00:00:00.000Z' };
       });
 
       // Daily Rollover: if new day, uncheck tasks and advance streak!
       if (savedDate && savedDate !== todayStr) {
+        const nowIso = new Date().toISOString();
         tasks = tasks.map((t) => ({
           ...t,
           completed: false,
           counterCurrent: t.type === 'counter' ? 0 : t.counterCurrent,
-          readingDetails: t.readingDetails ? { ...t.readingDetails, minutesSpent: 0 } : undefined
+          readingDetails: t.readingDetails ? { ...t.readingDetails, minutesSpent: 0 } : undefined,
+          updatedAt: nowIso
         }));
         streak += 1;
         localStorage.setItem(STREAK_KEY, streak.toString());
         localStorage.setItem(LAST_DATE_KEY, todayStr);
-        saveTasksToStorage();
+        saveTasksToStorage(false);
       }
     } else {
-      tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+      tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS)).map((t) => ({
+        ...t,
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }));
       localStorage.setItem(LAST_DATE_KEY, todayStr);
-      saveTasksToStorage();
+      saveTasksToStorage(false);
     }
   } catch (e) {
     tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS));
   }
+}
 
-  // Initial UI Render
+function refreshAllViews() {
   renderDashboard();
   renderTimeline();
   renderTable();
@@ -419,18 +464,31 @@ function initApp() {
   updateDonutChart();
   updateHabitSquircleTiles();
   updatePhonePreview();
+  if (activeNav === 'tasks') renderMyTasksView();
+  if (activeNav === 'report') renderReportView();
+  if (activeNav === 'projects') renderProjectsView();
+  if (activeNav === 'calendar') renderCalendarView();
 }
 
-function saveTasksToStorage() {
+function saveTasksToStorage(triggerCloud = true) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    localStorage.setItem(VAULT_UPDATED_KEY, new Date().toISOString());
+    if (!_suppressSyncNotify) {
+      if (syncChannel) syncChannel.postMessage({ type: 'oneday-updated', ts: Date.now() });
+      localStorage.setItem('oneday_tab_ping', String(Date.now()));
+    }
   } catch (e) {}
+
+  if (triggerCloud && !_suppressSyncNotify && window.oneDayCloud) {
+    window.oneDayCloud.markLocalChange();
+  }
 }
 
 // ========================================================
 // 4. THEME & LANGUAGE HANDLERS
 // ========================================================
-function applyTheme(theme) {
+function applyTheme(theme, triggerCloud = true) {
   currentTheme = theme;
   localStorage.setItem(THEME_KEY, theme);
   const sunIcon = document.getElementById('themeIconSun');
@@ -445,11 +503,16 @@ function applyTheme(theme) {
     if (sunIcon) sunIcon.classList.add('hidden');
     if (moonIcon) moonIcon.classList.remove('hidden');
   }
+
+  if (triggerCloud && !_suppressSyncNotify) {
+    localStorage.setItem(SETTINGS_UPDATED_KEY, new Date().toISOString());
+    if (window.oneDayCloud) window.oneDayCloud.markLocalChange();
+  }
 }
 
 function toggleTheme() {
   triggerHaptic([25]);
-  applyTheme(currentTheme === 'light' ? 'dark' : 'light');
+  applyTheme(currentTheme === 'light' ? 'dark' : 'light', true);
 }
 
 function toggleLanguageMenu() {
@@ -457,19 +520,17 @@ function toggleLanguageMenu() {
   if (dd) dd.classList.toggle('hidden');
 }
 
-function setLanguage(lang) {
+function setLanguage(lang, triggerCloud = true) {
   currentLang = lang;
   localStorage.setItem(LANG_KEY, lang);
   const dd = document.getElementById('langDropdown');
   if (dd) dd.classList.add('hidden');
   updateLanguageUI();
-  renderDashboard();
-  renderTimeline();
-  renderTable();
-  updateWaveChart();
-  updateDonutChart();
-  updateHabitSquircleTiles();
-  updatePhonePreview();
+  refreshAllViews();
+  if (triggerCloud && !_suppressSyncNotify) {
+    localStorage.setItem(SETTINGS_UPDATED_KEY, new Date().toISOString());
+    if (window.oneDayCloud) window.oneDayCloud.markLocalChange();
+  }
 }
 
 const I18N_DICT = {
@@ -1060,8 +1121,8 @@ function renderTable() {
           </div>
         </div>
 
-        <!-- 5. Status / Action Pill -->
-        <div style="text-align: right;">
+        <!-- 5. Status / Action Pill + Edit / Delete -->
+        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap;">
           ${task.completed ? `
             <span class="action-pill" style="background: #EB5A8E;">Completed</span>
           ` : task.type === 'counter' ? `
@@ -1075,6 +1136,8 @@ function renderTable() {
           ` : `
             <span class="action-pill" style="background: var(--blue);">Pending</span>
           `}
+          <button type="button" class="row-icon-btn edit" title="എഡിറ്റ് ചെയ്യുക (Edit)" onclick="event.stopPropagation(); openEditTaskModal('${task.id}');">✏️</button>
+          <button type="button" class="row-icon-btn delete" title="ഡിലീറ്റ് ചെയ്യുക (Delete)" onclick="event.stopPropagation(); deleteTaskById('${task.id}');">🗑️</button>
         </div>
       </div>
     `;
@@ -1103,6 +1166,7 @@ function onTableRowClick(taskId) {
 // Toggle Task Completion (Zero strikethrough!)
 function toggleTask(taskId) {
   triggerHaptic([35]);
+  const nowIso = new Date().toISOString();
   tasks = tasks.map((item) => {
     if (item.id === taskId) {
       const nextCompleted = !item.completed;
@@ -1113,20 +1177,15 @@ function toggleTask(taskId) {
       return {
         ...item,
         completed: nextCompleted,
-        counterCurrent: nextCompleted && item.type === 'counter' ? (item.counterTarget || 100) : item.counterCurrent
+        counterCurrent: nextCompleted && item.type === 'counter' ? (item.counterTarget || 100) : item.counterCurrent,
+        updatedAt: nowIso
       };
     }
     return item;
   });
 
-  saveTasksToStorage();
-  renderDashboard();
-  renderTimeline();
-  renderTable();
-  updateWaveChart();
-  updateDonutChart();
-  updateHabitSquircleTiles();
-  updatePhonePreview();
+  saveTasksToStorage(true);
+  refreshAllViews();
 }
 
 function filterByCat(cat) {
@@ -1213,6 +1272,7 @@ function incrementDhikr(by = 1) {
   const next = Math.min(target, current + by);
 
   activeCounterTask.counterCurrent = next;
+  activeCounterTask.updatedAt = new Date().toISOString();
   triggerHaptic([30]);
 
   if (soundEnabled && next % 10 === 0) {
@@ -1228,16 +1288,10 @@ function incrementDhikr(by = 1) {
 
   // Sync with main task list
   tasks = tasks.map((t) => (t.id === activeCounterTask.id ? { ...activeCounterTask } : t));
-  saveTasksToStorage();
+  saveTasksToStorage(true);
 
   updateDhikrModalUI();
-  renderDashboard();
-  renderTimeline();
-  renderTable();
-  updateWaveChart();
-  updateDonutChart();
-  updateHabitSquircleTiles();
-  updatePhonePreview();
+  refreshAllViews();
 }
 
 function resetDhikrCounter() {
@@ -1245,18 +1299,13 @@ function resetDhikrCounter() {
   triggerHaptic([50, 30]);
   activeCounterTask.counterCurrent = 0;
   activeCounterTask.completed = false;
+  activeCounterTask.updatedAt = new Date().toISOString();
 
   tasks = tasks.map((t) => (t.id === activeCounterTask.id ? { ...activeCounterTask } : t));
-  saveTasksToStorage();
+  saveTasksToStorage(true);
 
   updateDhikrModalUI();
-  renderDashboard();
-  renderTimeline();
-  renderTable();
-  updateWaveChart();
-  updateDonutChart();
-  updateHabitSquircleTiles();
-  updatePhonePreview();
+  refreshAllViews();
 }
 
 function completeDhikrNow() {
@@ -1264,22 +1313,17 @@ function completeDhikrNow() {
   const target = activeCounterTask.counterTarget || 100;
   activeCounterTask.counterCurrent = target;
   activeCounterTask.completed = true;
+  activeCounterTask.updatedAt = new Date().toISOString();
 
   playChimeSound();
   triggerHaptic([80, 50, 80]);
   triggerConfettiBurst();
 
   tasks = tasks.map((t) => (t.id === activeCounterTask.id ? { ...activeCounterTask } : t));
-  saveTasksToStorage();
+  saveTasksToStorage(true);
 
   updateDhikrModalUI();
-  renderDashboard();
-  renderTimeline();
-  renderTable();
-  updateWaveChart();
-  updateDonutChart();
-  updateHabitSquircleTiles();
-  updatePhonePreview();
+  refreshAllViews();
 
   setTimeout(() => {
     closeDhikrModal();
@@ -1401,6 +1445,7 @@ function saveReadingHub(markCompleted = false) {
   };
 
   activeReadingTask.readingDetails = updatedDetails;
+  activeReadingTask.updatedAt = new Date().toISOString();
   if (markCompleted) {
     activeReadingTask.completed = true;
     playChimeSound();
@@ -1409,15 +1454,9 @@ function saveReadingHub(markCompleted = false) {
   }
 
   tasks = tasks.map((t) => (t.id === activeReadingTask.id ? { ...activeReadingTask } : t));
-  saveTasksToStorage();
+  saveTasksToStorage(true);
 
-  renderDashboard();
-  renderTimeline();
-  renderTable();
-  updateWaveChart();
-  updateDonutChart();
-  updateHabitSquircleTiles();
-  updatePhonePreview();
+  refreshAllViews();
 
   closeReadingModal();
 }
@@ -1445,10 +1484,12 @@ function saveUserPhone() {
   const phoneInput = document.getElementById('userPhoneNumberInput');
   if (phoneInput && phoneInput.value.trim()) {
     localStorage.setItem(PHONE_KEY, phoneInput.value.trim());
+    localStorage.setItem(SETTINGS_UPDATED_KEY, new Date().toISOString());
     triggerHaptic([40]);
     playChimeSound();
     alert(currentLang === 'ml' ? 'നമ്പർ വിജയകരമായി സേവ് ചെയ്തു!' : 'Phone number saved successfully!');
     updatePhonePreview();
+    if (window.oneDayCloud) window.oneDayCloud.markLocalChange();
   }
 }
 
@@ -1618,23 +1659,19 @@ function closeResetModal() {
 
 function executeResetToday() {
   triggerHaptic([60, 40]);
+  const nowIso = new Date().toISOString();
   tasks = tasks.map((t) => ({
     ...t,
     completed: false,
     counterCurrent: t.type === 'counter' ? 0 : t.counterCurrent,
-    readingDetails: t.readingDetails ? { ...t.readingDetails, minutesSpent: 0 } : undefined
+    readingDetails: t.readingDetails ? { ...t.readingDetails, minutesSpent: 0 } : undefined,
+    updatedAt: nowIso
   }));
 
-  saveTasksToStorage();
+  saveTasksToStorage(true);
   closeResetModal();
 
-  renderDashboard();
-  renderTimeline();
-  renderTable();
-  updateWaveChart();
-  updateDonutChart();
-  updateHabitSquircleTiles();
-  updatePhonePreview();
+  refreshAllViews();
 
   alert(currentLang === 'ml' ? 'ഇന്നത്തെ ദിനചര്യകൾ റീസെറ്റ് ചെയ്തു.' : 'Today\'s routines have been reset.');
 }
@@ -1647,31 +1684,90 @@ function executeFullFactoryReset() {
   if (!confirm(confirmMsg)) return;
 
   triggerHaptic([100, 80, 80]);
+  const nowIso = new Date().toISOString();
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(STREAK_KEY);
   localStorage.removeItem(LAST_DATE_KEY);
+  localStorage.removeItem(DELETED_IDS_KEY);
 
   streak = 18;
-  tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS));
-  saveTasksToStorage();
+  localStorage.setItem(STREAK_KEY, '18');
+  localStorage.setItem(LAST_DATE_KEY, new Date().toISOString().split('T')[0]);
+  tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS)).map((t) => ({ ...t, updatedAt: nowIso }));
+  saveTasksToStorage(true);
   closeResetModal();
 
-  renderDashboard();
-  renderTimeline();
-  renderTable();
-  updateWaveChart();
-  updateDonutChart();
-  updateHabitSquircleTiles();
-  updatePhonePreview();
+  refreshAllViews();
 
   alert(currentLang === 'ml' ? 'ഫാക്ടറി റീസെറ്റ് വിജയകരമായി പൂർത്തിയായി!' : 'Factory reset completed!');
 }
 
 // ========================================================
-// 13. ADD TASK MODAL
+// 13. ADD / EDIT / DELETE TASK HANDLERS
 // ========================================================
+function to24HourTime(time12h) {
+  if (!time12h) return '09:00';
+  const m = String(time12h).trim().match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+  if (!m) return '09:00';
+  let h = parseInt(m[1], 10);
+  const mins = m[2];
+  const mer = (m[3] || '').toUpperCase();
+  if (mer === 'PM' && h < 12) h += 12;
+  if (mer === 'AM' && h === 12) h = 0;
+  return `${String(h).padStart(2, '0')}:${mins}`;
+}
+
 function openAddModal() {
   triggerHaptic([20]);
+  const editIdEl = document.getElementById('editTaskIdInput');
+  const modalTitleEl = document.getElementById('addEditModalHeading');
+  const saveBtnEl = document.getElementById('addEditModalSubmitBtn');
+  const titleInput = document.getElementById('newTaskTitleInput');
+  const mlTitleInput = document.getElementById('newTaskMlTitleInput');
+  const arTitleInput = document.getElementById('newTaskArTitleInput');
+  const timeInput = document.getElementById('newTaskTimeInput');
+  const catSelect = document.getElementById('newTaskCatSelect');
+  const typeSelect = document.getElementById('newTaskTypeSelect');
+
+  if (editIdEl) editIdEl.value = '';
+  if (modalTitleEl) modalTitleEl.innerText = currentLang === 'ml' ? 'പുതിയ ടാസ്ക് ചേർക്കുക' : 'Add New Task';
+  if (saveBtnEl) saveBtnEl.innerText = currentLang === 'ml' ? '+ ചേർക്കുക (Add Task)' : '+ Add Task';
+  if (titleInput) titleInput.value = '';
+  if (mlTitleInput) mlTitleInput.value = '';
+  if (arTitleInput) arTitleInput.value = '';
+  if (timeInput) timeInput.value = '09:00';
+  if (catSelect) catSelect.value = 'spiritual';
+  if (typeSelect) typeSelect.value = 'standard';
+
+  const modal = document.getElementById('addModalBackdrop');
+  if (modal) modal.classList.add('open');
+}
+
+function openEditTaskModal(taskId) {
+  triggerHaptic([20]);
+  const task = tasks.find((t) => t.id === taskId);
+  if (!task) return;
+
+  const editIdEl = document.getElementById('editTaskIdInput');
+  const modalTitleEl = document.getElementById('addEditModalHeading');
+  const saveBtnEl = document.getElementById('addEditModalSubmitBtn');
+  const titleInput = document.getElementById('newTaskTitleInput');
+  const mlTitleInput = document.getElementById('newTaskMlTitleInput');
+  const arTitleInput = document.getElementById('newTaskArTitleInput');
+  const timeInput = document.getElementById('newTaskTimeInput');
+  const catSelect = document.getElementById('newTaskCatSelect');
+  const typeSelect = document.getElementById('newTaskTypeSelect');
+
+  if (editIdEl) editIdEl.value = task.id;
+  if (modalTitleEl) modalTitleEl.innerText = currentLang === 'ml' ? 'ടാസ്ക് എഡിറ്റ് ചെയ്യുക (Edit Task)' : 'Edit Task';
+  if (saveBtnEl) saveBtnEl.innerText = currentLang === 'ml' ? '💾 മാറ്റങ്ങൾ സേവ് ചെയ്യുക' : '💾 Save Changes';
+  if (titleInput) titleInput.value = task.title || '';
+  if (mlTitleInput) mlTitleInput.value = task.malayalamTitle || '';
+  if (arTitleInput) arTitleInput.value = task.arabicTitle || '';
+  if (timeInput) timeInput.value = to24HourTime(task.time);
+  if (catSelect) catSelect.value = task.category || 'spiritual';
+  if (typeSelect) typeSelect.value = task.type || 'standard';
+
   const modal = document.getElementById('addModalBackdrop');
   if (modal) modal.classList.add('open');
 }
@@ -1682,8 +1778,10 @@ function closeAddModal() {
 }
 
 function saveNewTask() {
+  const editIdEl = document.getElementById('editTaskIdInput');
   const titleInput = document.getElementById('newTaskTitleInput');
   const mlTitleInput = document.getElementById('newTaskMlTitleInput');
+  const arTitleInput = document.getElementById('newTaskArTitleInput');
   const timeInput = document.getElementById('newTaskTimeInput');
   const catSelect = document.getElementById('newTaskCatSelect');
   const typeSelect = document.getElementById('newTaskTypeSelect');
@@ -1694,7 +1792,9 @@ function saveNewTask() {
     return;
   }
 
+  const editingId = editIdEl ? editIdEl.value.trim() : '';
   const mlTitle = (mlTitleInput ? mlTitleInput.value : '').trim();
+  const arTitle = (arTitleInput ? arTitleInput.value : '').trim();
   const time = timeInput ? timeInput.value : '09:00';
   const category = catSelect ? catSelect.value : 'spiritual';
   const type = typeSelect ? typeSelect.value : 'standard';
@@ -1705,45 +1805,91 @@ function saveNewTask() {
   const ampm = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
   const formattedTime = `${String(h).padStart(2, '0')}:${mStr} ${ampm}`;
+  const nowIso = new Date().toISOString();
 
-  const newTask = {
-    id: `custom_${Date.now()}`,
-    title: title.toUpperCase(),
-    malayalamTitle: mlTitle || title,
-    time: formattedTime,
-    period: 'morning',
-    completed: false,
-    category: category,
-    type: type,
-    counterTarget: type === 'counter' ? 100 : undefined,
-    counterCurrent: type === 'counter' ? 0 : undefined,
-    readingDetails: type === 'reading' ? {
-      materialType: 'Book',
-      title: title,
-      targetMinutes: 25,
-      minutesSpent: 0,
-      startPage: '1',
-      endPage: '15',
-      notes: ''
-    } : undefined
-  };
+  if (editingId) {
+    tasks = tasks.map((item) => {
+      if (item.id === editingId) {
+        return {
+          ...item,
+          title: title.toUpperCase(),
+          malayalamTitle: mlTitle || title,
+          arabicTitle: arTitle || undefined,
+          time: formattedTime,
+          category: category,
+          type: type,
+          counterTarget: type === 'counter' ? (item.counterTarget || 100) : undefined,
+          counterCurrent: type === 'counter' ? (item.counterCurrent || 0) : undefined,
+          readingDetails: type === 'reading' ? (item.readingDetails || {
+            materialType: 'Book',
+            title: title,
+            targetMinutes: 25,
+            minutesSpent: 0,
+            startPage: '1',
+            endPage: '15',
+            notes: ''
+          }) : undefined,
+          updatedAt: nowIso
+        };
+      }
+      return item;
+    });
+  } else {
+    const newTask = {
+      id: `custom_${Date.now()}`,
+      title: title.toUpperCase(),
+      malayalamTitle: mlTitle || title,
+      arabicTitle: arTitle || undefined,
+      time: formattedTime,
+      period: 'morning',
+      completed: false,
+      category: category,
+      type: type,
+      counterTarget: type === 'counter' ? 100 : undefined,
+      counterCurrent: type === 'counter' ? 0 : undefined,
+      readingDetails: type === 'reading' ? {
+        materialType: 'Book',
+        title: title,
+        targetMinutes: 25,
+        minutesSpent: 0,
+        startPage: '1',
+        endPage: '15',
+        notes: ''
+      } : undefined,
+      updatedAt: nowIso
+    };
+    tasks.push(newTask);
+  }
 
-  tasks.push(newTask);
-  saveTasksToStorage();
+  saveTasksToStorage(true);
   triggerHaptic([40]);
   playChimeSound();
 
+  if (editIdEl) editIdEl.value = '';
   if (titleInput) titleInput.value = '';
   if (mlTitleInput) mlTitleInput.value = '';
+  if (arTitleInput) arTitleInput.value = '';
 
   closeAddModal();
-  renderDashboard();
-  renderTimeline();
-  renderTable();
-  updateWaveChart();
-  updateDonutChart();
-  updateHabitSquircleTiles();
-  updatePhonePreview();
+  refreshAllViews();
+}
+
+function deleteTaskById(taskId) {
+  const target = tasks.find((t) => t.id === taskId);
+  if (!target) return;
+
+  const displayName = target.malayalamTitle || target.title;
+  const confirmMsg = currentLang === 'ml'
+    ? `"${displayName}" ഡിലീറ്റ് ചെയ്യണോ?`
+    : `Delete "${displayName}"?`;
+
+  if (!confirm(confirmMsg)) return;
+
+  triggerHaptic([50, 30]);
+  tasks = tasks.filter((t) => t.id !== taskId);
+  recordDeletedTaskId(taskId);
+  saveTasksToStorage(true);
+  refreshAllViews();
 }
 
 // ========================================================
@@ -1801,19 +1947,23 @@ function renderMyTasksView() {
   if (!container) return;
 
   container.innerHTML = tasks.map((t) => `
-    <div class="routine-row ${t.completed ? 'completed' : ''}" onclick="toggleTask('${t.id}')">
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <div class="check-circle ${t.completed ? 'checked' : ''}">
+    <div class="routine-row ${t.completed ? 'completed' : ''}" onclick="onTableRowClick('${t.id}')">
+      <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+        <div class="check-circle ${t.completed ? 'checked' : ''}" onclick="event.stopPropagation(); toggleTask('${t.id}');">
           ${t.completed ? '✓' : ''}
         </div>
-        <div>
-          <span class="no-strike" style="font-size: 13px; font-weight: 800;">${t.malayalamTitle || t.title}</span>
+        <div style="min-width: 0;">
+          <span class="no-strike" style="font-size: 13px; font-weight: 800; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${getDisplayTitle(t)}</span>
           <span class="mono" style="font-size: 11px; color: var(--text-muted); display: block;">⏰ ${t.time} • ${t.category}</span>
         </div>
       </div>
-      <span class="action-pill" style="background: ${t.completed ? '#12B76A' : 'var(--blue)'};">
-        ${t.completed ? 'Completed' : 'Pending'}
-      </span>
+      <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; grid-column: span 4;">
+        <span class="action-pill" style="background: ${t.completed ? '#12B76A' : 'var(--blue)'};">
+          ${t.completed ? 'Completed' : 'Pending'}
+        </span>
+        <button type="button" class="row-icon-btn edit" title="Edit" onclick="event.stopPropagation(); openEditTaskModal('${t.id}');">✏️</button>
+        <button type="button" class="row-icon-btn delete" title="Delete" onclick="event.stopPropagation(); deleteTaskById('${t.id}');">🗑️</button>
+      </div>
     </div>
   `).join('');
 }
@@ -1890,7 +2040,390 @@ function renderReportView() {
 }
 
 // ========================================================
-// 16. BOOTSTRAP APP ON LOAD
+// 16. CROSS-TAB & GMAIL CLOUD SYNC ENGINE
+// ========================================================
+function exportOneDayCloudVault() {
+  const lastActiveDate = localStorage.getItem(LAST_DATE_KEY) || new Date().toISOString().split('T')[0];
+  const updatedAt = localStorage.getItem(VAULT_UPDATED_KEY) || new Date().toISOString();
+  const settingsUpdatedAt = localStorage.getItem(SETTINGS_UPDATED_KEY) || '2026-01-01T00:00:00.000Z';
+  return {
+    appName: 'OneDayCloud',
+    version: 1,
+    updatedAt,
+    lastActiveDate,
+    streak,
+    tasks: tasks.map((t) => ({
+      ...t,
+      updatedAt: t.updatedAt || updatedAt
+    })),
+    deletedIds: getDeletedIdsLog(),
+    settingsUpdatedAt,
+    settings: {
+      language: currentLang,
+      theme: currentTheme,
+      phoneNumber: localStorage.getItem(PHONE_KEY) || ''
+    }
+  };
+}
+
+function mergeOneDayCloudVault(remoteVault) {
+  if (!remoteVault || remoteVault.appName !== 'OneDayCloud') return { changed: false };
+  const prevSuppress = _suppressSyncNotify;
+  _suppressSyncNotify = true;
+  let changed = false;
+
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const localDate = localStorage.getItem(LAST_DATE_KEY) || todayStr;
+    const remoteDate = remoteVault.lastActiveDate || localDate;
+
+    // 1. Merge deleted task tombstones
+    const delMap = {};
+    const ingestDel = (arr) => {
+      if (!Array.isArray(arr)) return;
+      arr.forEach((d) => {
+        if (!d || !d.id) return;
+        const ts = new Date(d.deletedAt || 0).getTime();
+        if (!delMap[d.id] || delMap[d.id] < ts) delMap[d.id] = ts;
+      });
+    };
+    ingestDel(getDeletedIdsLog());
+    ingestDel(remoteVault.deletedIds);
+
+    const cutoff = Date.now() - (180 * 24 * 60 * 60 * 1000);
+    const mergedDelLog = Object.keys(delMap)
+      .filter((id) => delMap[id] > cutoff)
+      .map((id) => ({ id, deletedAt: new Date(delMap[id]).toISOString() }));
+    localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(mergedDelLog));
+
+    // 2. Date-aware task merge
+    const taskMap = new Map();
+    tasks.forEach((t) => {
+      const ts = new Date(t.updatedAt || '2026-01-01T00:00:00.000Z').getTime();
+      if (delMap[t.id] && delMap[t.id] >= ts) {
+        changed = true;
+        return;
+      }
+      taskMap.set(t.id, t);
+    });
+
+    if (Array.isArray(remoteVault.tasks)) {
+      remoteVault.tasks.forEach((rt) => {
+        if (!rt || !rt.id) return;
+        const rts = new Date(rt.updatedAt || remoteVault.updatedAt || '2026-01-01T00:00:00.000Z').getTime();
+        if (delMap[rt.id] && delMap[rt.id] >= rts) return;
+
+        const existing = taskMap.get(rt.id);
+        if (!existing) {
+          const itemToAdd = { ...rt, updatedAt: rt.updatedAt || new Date().toISOString() };
+          // If local already rolled over to a newer calendar day than remote, uncheck old-day status
+          if (localDate > remoteDate) {
+            itemToAdd.completed = false;
+            if (itemToAdd.type === 'counter') itemToAdd.counterCurrent = 0;
+          }
+          taskMap.set(rt.id, itemToAdd);
+          changed = true;
+        } else {
+          const lts = new Date(existing.updatedAt || '2026-01-01T00:00:00.000Z').getTime();
+          if (remoteDate > localDate || (remoteDate === localDate && rts > lts)) {
+            taskMap.set(rt.id, { ...rt, updatedAt: rt.updatedAt || remoteVault.updatedAt || new Date().toISOString() });
+            changed = true;
+          }
+        }
+      });
+    }
+
+    if (remoteDate > localDate) {
+      localStorage.setItem(LAST_DATE_KEY, remoteDate);
+      if (typeof remoteVault.streak === 'number') {
+        streak = remoteVault.streak;
+        localStorage.setItem(STREAK_KEY, String(streak));
+      }
+      changed = true;
+    } else if (typeof remoteVault.streak === 'number' && remoteVault.streak > streak) {
+      streak = remoteVault.streak;
+      localStorage.setItem(STREAK_KEY, String(streak));
+      changed = true;
+    }
+
+    tasks = Array.from(taskMap.values());
+
+    // 3. Merge settings if remote is newer
+    if (remoteVault.settings) {
+      const lSetTs = new Date(localStorage.getItem(SETTINGS_UPDATED_KEY) || '2026-01-01T00:00:00.000Z').getTime();
+      const rSetTs = new Date(remoteVault.settingsUpdatedAt || 0).getTime();
+      if (rSetTs > lSetTs) {
+        if (remoteVault.settings.theme) applyTheme(remoteVault.settings.theme, false);
+        if (remoteVault.settings.language && remoteVault.settings.language !== currentLang) {
+          currentLang = remoteVault.settings.language;
+          localStorage.setItem(LANG_KEY, currentLang);
+          updateLanguageUI();
+        }
+        if (typeof remoteVault.settings.phoneNumber === 'string') {
+          localStorage.setItem(PHONE_KEY, remoteVault.settings.phoneNumber);
+        }
+        localStorage.setItem(SETTINGS_UPDATED_KEY, remoteVault.settingsUpdatedAt);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      localStorage.setItem(VAULT_UPDATED_KEY, remoteVault.updatedAt || new Date().toISOString());
+      if (activeCounterTask) {
+        const refreshed = tasks.find((t) => t.id === activeCounterTask.id);
+        if (refreshed) {
+          activeCounterTask = refreshed;
+          updateDhikrModalUI();
+        }
+      }
+      refreshAllViews();
+    }
+  } finally {
+    _suppressSyncNotify = prevSuppress;
+  }
+
+  return { changed };
+}
+
+window.exportOneDayCloudVault = exportOneDayCloudVault;
+window.mergeOneDayCloudVault = mergeOneDayCloudVault;
+
+function setupOneDayCloudAndTabs() {
+  const onExternalTabUpdate = () => {
+    loadLocalStateIntoMemory();
+    refreshAllViews();
+  };
+
+  if (syncChannel) {
+    syncChannel.addEventListener('message', (evt) => {
+      if (evt.data && evt.data.type === 'oneday-updated') {
+        onExternalTabUpdate();
+      }
+    });
+  }
+
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'oneday_tab_ping' || e.key === STORAGE_KEY) {
+      onExternalTabUpdate();
+    }
+  });
+
+  if (window.oneDayCloud) {
+    window.oneDayCloud.init(({ state, error, showToast }) => {
+      updateOneDayCloudUI(state, error);
+      if (showToast && state === 'synced') {
+        alert(currentLang === 'ml' ? '☁️ Gmail ക്ലൗഡ് സിങ്ക് പൂർത്തിയായി!' : '☁️ Gmail Cloud Sync completed!');
+      }
+    }).then(({ linkedFromUrl }) => {
+      updateOneDayCloudUI(window.oneDayCloud.state, window.oneDayCloud.lastError);
+      if (linkedFromUrl) {
+        alert(currentLang === 'ml'
+          ? '✅ Gmail ക്ലൗഡ് സിങ്ക് കണക്ട് ചെയ്തു! ഇനി Google ലോഗിൻ ചെയ്യാം.'
+          : '✅ Gmail Cloud Sync linked!');
+      }
+    });
+  }
+}
+
+function updateOneDayCloudUI(state = 'off', errMsg = '') {
+  if (!window.oneDayCloud) return;
+  const cfg = window.oneDayCloud.config || {};
+  const connected = window.oneDayCloud.isConfigured();
+
+  const headerBtn = document.getElementById('cloudHeaderBtn');
+  const headerLabel = document.getElementById('cloudHeaderText');
+  const statusTitle = document.getElementById('cloudModalStatusTitle');
+  const statusSub = document.getElementById('cloudModalStatusSub');
+  const btnSyncNow = document.getElementById('cloudBtnSyncNow');
+  const btnDisconnect = document.getElementById('cloudBtnDisconnect');
+  const shareBox = document.getElementById('cloudShareDeviceBox');
+
+  if (headerBtn) {
+    headerBtn.className = `pill-btn cloud-sync-pill ${state || 'off'}`;
+  }
+
+  if (!connected || state === 'off') {
+    if (headerLabel) headerLabel.innerText = 'Gmail';
+    if (statusTitle) statusTitle.innerText = '⚪ കണക്ട് ചെയ്തിട്ടില്ല (Not Connected)';
+    if (statusSub) statusSub.innerText = 'ഫോൺ, ടാബ്, കമ്പ്യൂട്ടർ എന്നിവ തമ്മിൽ ഡാറ്റ സ്വയം Sync ആവാൻ താഴെ ലോഗിൻ ചെയ്യുക.';
+    if (btnSyncNow) btnSyncNow.classList.add('hidden');
+    if (btnDisconnect) btnDisconnect.classList.add('hidden');
+    if (shareBox) shareBox.classList.add('hidden');
+  } else if (state === 'syncing') {
+    if (headerLabel) headerLabel.innerText = 'Syncing...';
+    if (statusTitle) statusTitle.innerText = '🔄 ക്ലൗഡുമായി Sync ചെയ്യുന്നു...';
+    if (btnSyncNow) btnSyncNow.classList.remove('hidden');
+    if (btnDisconnect) btnDisconnect.classList.remove('hidden');
+    if (shareBox) shareBox.classList.remove('hidden');
+  } else if (state === 'pending') {
+    if (headerLabel) headerLabel.innerText = cfg.gmail ? 'Sign In' : 'Pending';
+    if (statusTitle) statusTitle.innerText = cfg.provider === 'firebase' && errMsg === 'Sign in with Google'
+      ? '🟡 Google ലോഗിൻ ബാക്കിയുണ്ട് (Sign in below)'
+      : '🟡 അപ്‌ലോഡ് ബാക്കിയുണ്ട് (Pending Sync)';
+    if (statusSub) statusSub.innerText = cfg.gmail ? `Account: ${cfg.gmail}` : 'Sign in with Google to start instant live sync.';
+    if (btnSyncNow) btnSyncNow.classList.remove('hidden');
+    if (btnDisconnect) btnDisconnect.classList.remove('hidden');
+    if (shareBox) shareBox.classList.remove('hidden');
+  } else if (state === 'error') {
+    if (headerLabel) headerLabel.innerText = 'Retry';
+    if (statusTitle) statusTitle.innerText = '⚠️ Sync പിശക് (Sync Issue)';
+    if (statusSub) statusSub.innerText = errMsg || 'Network or permission error.';
+    if (btnSyncNow) btnSyncNow.classList.remove('hidden');
+    if (btnDisconnect) btnDisconnect.classList.remove('hidden');
+    if (shareBox) shareBox.classList.remove('hidden');
+  } else {
+    const timeStr = cfg.lastSyncAt ? new Date(cfg.lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now';
+    if (headerLabel) headerLabel.innerText = 'Synced ✓';
+    if (statusTitle) statusTitle.innerText = `🟢 സിങ്ക് സജീവമാണ് (${cfg.gmail || 'Gmail'})`;
+    if (statusSub) statusSub.innerText = `അവസാന Sync: ${timeStr} • ഫോണിലും ടാബിലും എൻട്രികൾ തനിയെ മാറും.`;
+    if (btnSyncNow) btnSyncNow.classList.remove('hidden');
+    if (btnDisconnect) btnDisconnect.classList.remove('hidden');
+    if (shareBox) shareBox.classList.remove('hidden');
+  }
+}
+
+function openOneDayCloudModal() {
+  triggerHaptic([20]);
+  if (window.oneDayCloud) {
+    const cfg = window.oneDayCloud.config || {};
+    const fbInp = document.getElementById('onedayCloudFirebaseJson');
+    const gmailInp = document.getElementById('onedayCloudGmail');
+    const keyInp = document.getElementById('onedayCloudSyncKey');
+    const urlInp = document.getElementById('onedayCloudScriptUrl');
+
+    if (fbInp && cfg.firebaseConfig) fbInp.value = JSON.stringify(cfg.firebaseConfig, null, 2);
+    if (gmailInp && cfg.gmail) gmailInp.value = cfg.gmail;
+    if (keyInp && cfg.syncKey) keyInp.value = cfg.syncKey;
+    if (urlInp && cfg.scriptUrl) urlInp.value = cfg.scriptUrl;
+
+    switchOneDayCloudTab(cfg.provider === 'apps_script' ? 'drive' : 'firebase');
+    updateOneDayCloudUI(window.oneDayCloud.state, window.oneDayCloud.lastError);
+  }
+  const modal = document.getElementById('cloudSyncModalBackdrop');
+  if (modal) modal.classList.add('open');
+}
+
+function closeOneDayCloudModal() {
+  const modal = document.getElementById('cloudSyncModalBackdrop');
+  if (modal) modal.classList.remove('open');
+}
+
+function switchOneDayCloudTab(tab = 'firebase') {
+  const tabFb = document.getElementById('tabOneDayFirebase');
+  const tabDrive = document.getElementById('tabOneDayDrive');
+  const panelFb = document.getElementById('panelOneDayFirebase');
+  const panelDrive = document.getElementById('panelOneDayDrive');
+
+  if (tab === 'drive') {
+    tabFb && tabFb.classList.remove('active');
+    tabDrive && tabDrive.classList.add('active');
+    panelFb && panelFb.classList.add('hidden');
+    panelDrive && panelDrive.classList.remove('hidden');
+  } else {
+    tabFb && tabFb.classList.add('active');
+    tabDrive && tabDrive.classList.remove('active');
+    panelFb && panelFb.classList.remove('hidden');
+    panelDrive && panelDrive.classList.add('hidden');
+  }
+}
+
+async function handleOneDayFirebaseSignIn() {
+  if (!window.oneDayCloud) return;
+  const raw = (document.getElementById('onedayCloudFirebaseJson')?.value || '').trim();
+  let fbCfg = null;
+  if (raw) {
+    try {
+      fbCfg = window.oneDayCloud.parseFlexibleFirebaseConfig(raw);
+    } catch (err) {
+      alert(err.message || 'Invalid Firebase Config!');
+      return;
+    }
+  } else if (window.oneDayCloud.config && window.oneDayCloud.config.firebaseConfig) {
+    fbCfg = window.oneDayCloud.config.firebaseConfig;
+  } else {
+    alert(currentLang === 'ml'
+      ? 'ആദ്യം Firebase Config ({ apiKey, authDomain, projectId... }) ഇവിടെ നൽകുക!'
+      : 'Please paste your Firebase Config first.');
+    return;
+  }
+
+  try {
+    await window.oneDayCloud.signInWithFirebaseGoogle(fbCfg);
+    alert(currentLang === 'ml' ? '🟢 Google വഴി വിജയകരമായി ലോഗിൻ ചെയ്തു!' : '🟢 Signed in with Google!');
+  } catch (err) {
+    alert('Google Sign-In Error: ' + (err.message || err));
+  }
+}
+
+async function copyOneDayAppsScript() {
+  if (!window.oneDayCloud) return;
+  const gmail = (document.getElementById('onedayCloudGmail')?.value || '').trim();
+  const key = (document.getElementById('onedayCloudSyncKey')?.value || '246810').trim();
+  const code = window.oneDayCloud.generateAppsScriptCode(gmail, key);
+  try {
+    await navigator.clipboard.writeText(code);
+    alert(currentLang === 'ml'
+      ? '✅ കോഡ് കോപ്പി ചെയ്തു! ഇനി script.google.com-ൽ Paste ചെയ്യുക.'
+      : '✅ Apps Script code copied!');
+  } catch (_) {
+    prompt('Copy Apps Script Code:', code);
+  }
+}
+
+async function handleOneDayAppsScriptConnect() {
+  if (!window.oneDayCloud) return;
+  const gmail = (document.getElementById('onedayCloudGmail')?.value || '').trim();
+  const key = (document.getElementById('onedayCloudSyncKey')?.value || '').trim();
+  const url = (document.getElementById('onedayCloudScriptUrl')?.value || '').trim();
+  try {
+    await window.oneDayCloud.testAndConnectAppsScript(gmail, url, key);
+    alert(currentLang === 'ml' ? '🟢 Gmail Drive Sync കണക്ട് ചെയ്തു!' : '🟢 Gmail Drive Sync connected!');
+  } catch (err) {
+    alert('Connection Error: ' + (err.message || err));
+  }
+}
+
+function syncOneDayNow() {
+  if (window.oneDayCloud) window.oneDayCloud.syncNow(true);
+}
+
+async function handleOneDayCloudDisconnect() {
+  if (!window.oneDayCloud) return;
+  if (!confirm(currentLang === 'ml' ? 'ക്ലൗഡ് സിങ്ക് ഓഫ് ചെയ്യണോ? (ലോക്കൽ ഡാറ്റ നഷ്ടപ്പെടില്ല)' : 'Disconnect Cloud Sync?')) return;
+  await window.oneDayCloud.disconnect();
+}
+
+async function copyOneDayMagicLink() {
+  if (!window.oneDayCloud || !window.oneDayCloud.isConfigured()) return;
+  const link = window.oneDayCloud.buildMagicSyncLink();
+  if (!link) return;
+  try {
+    await navigator.clipboard.writeText(link);
+    alert(currentLang === 'ml' ? '📋 ലിങ്ക് കോപ്പി ചെയ്തു! ഇനി ടാബിലോ കമ്പ്യൂട്ടറിലോ തുറക്കാം.' : '📋 Sync Link copied!');
+  } catch (_) {
+    prompt('Copy Sync Link:', link);
+  }
+}
+
+function sendOneDayMagicLinkGmail() {
+  if (!window.oneDayCloud || !window.oneDayCloud.isConfigured()) return;
+  const link = window.oneDayCloud.buildMagicSyncLink();
+  const to = encodeURIComponent(window.oneDayCloud.config.gmail || '');
+  const su = encodeURIComponent('ONE DAY Tracker - Multi-Device Gmail Sync Link');
+  const body = encodeURIComponent(`ഏത് ഫോണിലോ ടാബിലോ കമ്പ്യൂട്ടറിലോ ഈ ലിങ്ക് തുറന്നാൽ ONE DAY ഡാറ്റ തനിയെ Sync ആകും:\n\n${link}`);
+  window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${su}&body=${body}`, '_blank');
+}
+
+function shareOneDayMagicLinkWhatsapp() {
+  if (!window.oneDayCloud || !window.oneDayCloud.isConfigured()) return;
+  const link = window.oneDayCloud.buildMagicSyncLink();
+  const text = encodeURIComponent(`ONE DAY Tracker - ടാബിലോ മറ്റ് ഫോണിലോ സിങ്ക് ചെയ്യാൻ ഈ ലിങ്ക് തുറക്കുക:\n\n${link}`);
+  openWhatsAppUrl(`https://api.whatsapp.com/send?text=${text}`);
+}
+
+// ========================================================
+// 17. BOOTSTRAP APP ON LOAD
 // ========================================================
 if (document.readyState === 'loading') {
   window.addEventListener('DOMContentLoaded', () => {
