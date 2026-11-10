@@ -86,11 +86,23 @@ export default function LectorTimelineCard({
           return (
             <div
               key={task.id}
-              onClick={() => onToggle(task.id)}
-              className="flex items-start gap-3 relative cursor-pointer group"
+              onClick={() => {
+                if (task.type === 'counter') {
+                  onOpenCounter(task);
+                } else if (task.type === 'reading') {
+                  onOpenReading(task);
+                } else {
+                  onToggle(task.id);
+                }
+              }}
+              className="flex items-start gap-3 relative cursor-pointer group active:opacity-75 transition-opacity"
             >
               {/* Circular Dot Badge */}
               <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle(task.id);
+                }}
                 className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 z-10 transition-transform group-hover:scale-110 shadow-xs ${
                   task.completed ? 'bg-emerald-500 text-white' : `${col.bg} text-white`
                 }`}

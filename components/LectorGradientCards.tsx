@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Task } from '@/types/task';
+import { DEFAULT_TASKS } from '@/lib/defaultTasks';
 import { Language } from '@/lib/translations';
 import { BarChart2, TrendingUp, Activity, Flame } from 'lucide-react';
 
@@ -20,8 +21,8 @@ export default function LectorGradientCards({
   onOpenCounter,
   onOpenReading,
 }: LectorGradientCardsProps) {
-  const counterTask = tasks.find((t) => t.type === 'counter');
-  const readingTask = tasks.find((t) => t.type === 'reading');
+  const counterTask = tasks.find((t) => t.type === 'counter') || DEFAULT_TASKS.find((t) => t.type === 'counter');
+  const readingTask = tasks.find((t) => t.type === 'reading') || DEFAULT_TASKS.find((t) => t.type === 'reading');
   const spiritualTasks = tasks.filter((t) => t.category === 'spiritual');
   const spiritualDone = spiritualTasks.filter((t) => t.completed).length;
 

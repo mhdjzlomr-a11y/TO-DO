@@ -123,8 +123,16 @@ export default function LectorRoutineTable({
               return (
                 <tr
                   key={task.id}
-                  onClick={() => handleCheck(task.id, task.completed)}
-                  className="hover:bg-gray-50/70 dark:hover:bg-white/3 transition-colors cursor-pointer group"
+                  onClick={() => {
+                    if (task.type === 'counter') {
+                      onOpenCounter(task);
+                    } else if (task.type === 'reading') {
+                      onOpenReading(task);
+                    } else {
+                      handleCheck(task.id, task.completed);
+                    }
+                  }}
+                  className="hover:bg-gray-50/70 dark:hover:bg-white/3 transition-colors cursor-pointer group active:bg-gray-100/70"
                 >
                   {/* Routine Name */}
                   <td className="py-3 px-3">
@@ -157,6 +165,23 @@ export default function LectorRoutineTable({
                           <span dir="rtl" className="text-[10px] text-gray-400 font-serif block">
                             {task.arabicTitle}
                           </span>
+                        )}
+                        {/* Mobile quick action pills visible right under title */}
+                        {task.type === 'counter' && (
+                          <div className="pt-1 sm:hidden">
+                            <span className="px-2 py-0.5 rounded-md bg-[#2B2965] text-white text-[9px] font-bold shadow-2xs inline-flex items-center gap-1">
+                              <Hash className="w-2.5 h-2.5" />
+                              <span>{task.counterCurrent || 0}/100 എണ്ണുക</span>
+                            </span>
+                          </div>
+                        )}
+                        {task.type === 'reading' && (
+                          <div className="pt-1 sm:hidden">
+                            <span className="px-2 py-0.5 rounded-md bg-[#7F44B8] text-white text-[9px] font-bold shadow-2xs inline-flex items-center gap-1">
+                              <BookOpen className="w-2.5 h-2.5" />
+                              <span>വായനാ ഓപ്ഷനുകൾ തുറക്കുക</span>
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>

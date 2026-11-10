@@ -72,7 +72,7 @@ const THEME_KEY = 'oneday_theme_v2';
 const PHONE_KEY = 'oneday_saved_phone_number_v2';
 
 export default function Home() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Task[]>(DEFAULT_TASKS);
   const [streak, setStreak] = useState<number>(18);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeNav, setActiveNav] = useState<'dashboard' | 'projects' | 'tasks' | 'calendar' | 'report'>('dashboard');
@@ -347,7 +347,7 @@ export default function Home() {
   return (
     <div
       dir={isRtl ? 'rtl' : 'ltr'}
-      className="min-h-screen bg-[#F8F9FD] dark:bg-[#0B0E1E] text-gray-900 dark:text-white flex transition-colors duration-300 select-none"
+      className="min-h-screen bg-[#F8F9FD] dark:bg-[#0B0E1E] text-gray-900 dark:text-white flex transition-colors duration-300"
     >
       {/* Floating In-App Alert Toast Banner */}
       {activeToast && (
@@ -475,7 +475,7 @@ export default function Home() {
       {/* ======================================================== */}
       {/* 2. MAIN CONTENT AREA                                    */}
       {/* ======================================================== */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto pb-20 lg:pb-0">
         {/* Top Header Bar matching image */}
         <header className="sticky top-0 z-30 bg-white/90 dark:bg-[#121528]/90 backdrop-blur-md border-b border-gray-100 dark:border-white/5 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
           {/* Mobile Menu & Brand */}
@@ -938,6 +938,85 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* ======================================================== */}
+      {/* 5. MOBILE BOTTOM NAVIGATION BAR (Instant Thumb Access)   */}
+      {/* ======================================================== */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#121528]/95 backdrop-blur-lg border-t border-gray-200/80 dark:border-white/10 px-2 py-2 flex items-center justify-around shadow-lg">
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic([20]);
+            setActiveNav('dashboard');
+          }}
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all ${
+            activeNav === 'dashboard'
+              ? 'text-pink-600 dark:text-pink-400 font-bold scale-105'
+              : 'text-gray-500 dark:text-gray-400'
+          }`}
+        >
+          <LayoutDashboard className="w-5 h-5" />
+          <span className="text-[10px]">{t.dashboard}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic([20]);
+            setActiveNav('tasks');
+          }}
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all ${
+            activeNav === 'tasks'
+              ? 'text-pink-600 dark:text-pink-400 font-bold scale-105'
+              : 'text-gray-500 dark:text-gray-400'
+          }`}
+        >
+          <CheckSquare className="w-5 h-5" />
+          <span className="text-[10px]">{t.myTasks}</span>
+        </button>
+
+        {/* Center Quick Action: Dhikr Counter / Reading */}
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic([30]);
+            const cTask = tasks.find((t) => t.type === 'counter') || DEFAULT_TASKS.find((t) => t.type === 'counter');
+            if (cTask) setSelectedCounterTask(cTask);
+          }}
+          className="flex flex-col items-center justify-center -mt-5 w-12 h-12 rounded-full bg-gradient-to-tr from-[#FF4B8B] to-[#7B4EE4] text-white shadow-lg active:scale-95 transition-transform"
+          title="Dhikr 100x"
+        >
+          <Sparkles className="w-6 h-6" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic([20]);
+            setActiveNav('report');
+          }}
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all ${
+            activeNav === 'report'
+              ? 'text-pink-600 dark:text-pink-400 font-bold scale-105'
+              : 'text-gray-500 dark:text-gray-400'
+          }`}
+        >
+          <BarChart3 className="w-5 h-5" />
+          <span className="text-[10px]">{t.report}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic([20]);
+            setShowResetModal(true);
+          }}
+          className="flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-rose-500 transition-all active:scale-95"
+        >
+          <RotateCcw className="w-5 h-5" />
+          <span className="text-[10px]">{language === 'ml' ? 'റീസെറ്റ്' : 'Reset'}</span>
+        </button>
+      </nav>
     </div>
   );
 }
