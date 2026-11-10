@@ -352,8 +352,102 @@ function toggleAudioSound() {
 const VAULT_UPDATED_KEY = 'oneday_vault_updated_v2';
 const DELETED_IDS_KEY = 'oneday_deleted_ids_v2';
 const SETTINGS_UPDATED_KEY = 'oneday_settings_updated_v2';
+const HISTORY_KEY = 'oneday_daily_history_v2';
 const syncChannel = (typeof BroadcastChannel !== 'undefined') ? new BroadcastChannel('oneday_sync_v1') : null;
 let _suppressSyncNotify = false;
+let dailyHistory = {};
+let midnightCheckTimer = null;
+
+function getLocalDateStr(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function loadDailyHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    dailyHistory = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+  } catch (_) {
+    dailyHistory = {};
+  }
+}
+
+function saveDailyHistory() {
+  try {
+    // Keep up to 365 most recent days cleanly
+    const keys = Object.keys(dailyHistory).sort();
+    if (keys.length > 365) {
+      keys.slice(0, keys.length - 365).forEach((k) => delete dailyHistory[k]);
+    }
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(dailyHistory));
+  } catch (_) {}
+}
+
+function recordDailySnapshot(dateStr = getLocalDateStr()) {
+  if (!Array.isArray(tasks)) return;
+  const totalCount = tasks.length;
+  const completedTasks = tasks.filter((t) => t.completed);
+  const completedCount = completedTasks.length;
+  const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const dhikrTotal = tasks
+    .filter((t) => t.type === 'counter')
+    .reduce((sum, t) => sum + (t.counterCurrent || 0), 0);
+  const readingMins = tasks
+    .filter((t) => t.type === 'reading')
+    .reduce((sum, t) => sum + ((t.readingDetails && t.readingDetails.minutesSpent) || 0), 0);
+
+  dailyHistory[dateStr] = {
+    date: dateStr,
+    completed: completedCount,
+    total: totalCount,
+    pct,
+    dhikrTotal,
+    readingMins,
+    completedTitles: completedTasks.map((t) => getDisplayTitle(t)),
+    updatedAt: new Date().toISOString()
+  };
+  saveDailyHistory();
+}
+
+function showInAppToast(msg) {
+  const el = document.getElementById('midnightToastBanner');
+  const txt = document.getElementById('midnightToastText');
+  if (el && txt) {
+    txt.innerText = msg;
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 7000);
+  }
+}
+
+function getPeriodStats(days = 7) {
+  const keys = Object.keys(dailyHistory).sort().reverse().slice(0, days);
+  if (keys.length === 0) {
+    const completed = tasks.filter((t) => t.completed).length;
+    const total = tasks.length || 13;
+    const pct = Math.round((completed / total) * 100);
+    return { avgPct: pct, completed, total, daysCount: 1 };
+  }
+  let sumPct = 0;
+  let sumComp = 0;
+  let sumTot = 0;
+  keys.forEach((k) => {
+    const entry = dailyHistory[k];
+    if (entry) {
+      sumPct += Number(entry.pct || 0);
+      sumComp += Number(entry.completed || 0);
+      sumTot += Number(entry.total || 13);
+    }
+  });
+  return {
+    avgPct: Math.round(sumPct / keys.length),
+    completed: sumComp,
+    total: sumTot,
+    daysCount: keys.length
+  };
+}
 
 function getDeletedIdsLog() {
   try {
@@ -392,7 +486,7 @@ function initApp() {
   currentLang = savedLang;
   updateLanguageUI();
 
-  // Load Tasks & Streak
+  // Load Tasks, History & Streak
   loadLocalStateIntoMemory();
 
   // Initial UI Render
@@ -400,14 +494,53 @@ function initApp() {
 
   // Start Cross-Tab & Gmail Cloud Sync
   setupOneDayCloudAndTabs();
+
+  // Watch midnight date rollover while app stays open
+  if (midnightCheckTimer) clearInterval(midnightCheckTimer);
+  midnightCheckTimer = setInterval(checkMidnightRollover, 30000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkMidnightRollover();
+  });
+  window.addEventListener('focus', checkMidnightRollover);
+}
+
+function checkMidnightRollover() {
+  const todayStr = getLocalDateStr();
+  const savedDate = localStorage.getItem(LAST_DATE_KEY);
+  if (savedDate && savedDate !== todayStr) {
+    // Archive finished yesterday stats permanently before wiping tasks for the fresh new day
+    recordDailySnapshot(savedDate);
+    const hadAnyCompleted = tasks.some((t) => t.completed);
+    const nowIso = new Date().toISOString();
+
+    tasks = tasks.map((t) => ({
+      ...t,
+      completed: false,
+      counterCurrent: t.type === 'counter' ? 0 : t.counterCurrent,
+      readingDetails: t.readingDetails ? { ...t.readingDetails, minutesSpent: 0 } : undefined,
+      updatedAt: nowIso
+    }));
+
+    if (hadAnyCompleted) {
+      streak += 1;
+      localStorage.setItem(STREAK_KEY, streak.toString());
+    }
+    localStorage.setItem(LAST_DATE_KEY, todayStr);
+    saveTasksToStorage(true);
+    refreshAllViews();
+    showInAppToast(currentLang === 'ml'
+      ? '🌅 പുതിയ ദിവസം തുടങ്ങി! ഇന്നലത്തെ റിപ്പോർട്ട് (%) സേവ് ചെയ്തു — ഇന്ന് പുതുതായി തുടങ്ങാം.'
+      : '🌅 New day started! Yesterday\'s percentage report was archived.');
+  }
 }
 
 function loadLocalStateIntoMemory() {
+  loadDailyHistory();
   const savedStreak = localStorage.getItem(STREAK_KEY);
   streak = savedStreak ? parseInt(savedStreak, 10) || 18 : 18;
 
   try {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateStr();
     const savedDate = localStorage.getItem(LAST_DATE_KEY);
     const rawTasks = localStorage.getItem(STORAGE_KEY);
 
@@ -428,8 +561,10 @@ function loadLocalStateIntoMemory() {
         return { ...item, updatedAt: item.updatedAt || '2026-01-01T00:00:00.000Z' };
       });
 
-      // Daily Rollover: if new day, uncheck tasks and advance streak!
+      // Local-midnight daily rollover: save yesterday's report & reset cleanly for today
       if (savedDate && savedDate !== todayStr) {
+        recordDailySnapshot(savedDate);
+        const hadAnyCompleted = tasks.some((t) => t.completed);
         const nowIso = new Date().toISOString();
         tasks = tasks.map((t) => ({
           ...t,
@@ -438,10 +573,15 @@ function loadLocalStateIntoMemory() {
           readingDetails: t.readingDetails ? { ...t.readingDetails, minutesSpent: 0 } : undefined,
           updatedAt: nowIso
         }));
-        streak += 1;
-        localStorage.setItem(STREAK_KEY, streak.toString());
+        if (hadAnyCompleted) {
+          streak += 1;
+          localStorage.setItem(STREAK_KEY, streak.toString());
+        }
         localStorage.setItem(LAST_DATE_KEY, todayStr);
         saveTasksToStorage(false);
+      } else {
+        if (!savedDate) localStorage.setItem(LAST_DATE_KEY, todayStr);
+        recordDailySnapshot(todayStr);
       }
     } else {
       tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS)).map((t) => ({
@@ -472,6 +612,11 @@ function refreshAllViews() {
 
 function saveTasksToStorage(triggerCloud = true) {
   try {
+    const todayStr = getLocalDateStr();
+    if (!localStorage.getItem(LAST_DATE_KEY)) {
+      localStorage.setItem(LAST_DATE_KEY, todayStr);
+    }
+    recordDailySnapshot(todayStr);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
     localStorage.setItem(VAULT_UPDATED_KEY, new Date().toISOString());
     if (!_suppressSyncNotify) {
@@ -938,6 +1083,60 @@ function renderDashboard() {
       }
     }
   });
+
+  renderDashboardDailySummary();
+}
+
+function renderDashboardDailySummary() {
+  const listEl = document.getElementById('dashboardDailyHistoryList');
+  if (!listEl) return;
+
+  const todayStr = getLocalDateStr();
+  const keys = Object.keys(dailyHistory).sort().reverse().slice(0, 5);
+  if (keys.length === 0) {
+    listEl.innerHTML = `<div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 10px;">ഇന്നത്തെ എൻട്രികൾ അടയാളപ്പെടുത്തുമ്പോൾ ഇവിടെ ശതമാന കണക്ക് കാണാം.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = keys.map((dateKey) => {
+    const entry = dailyHistory[dateKey] || { completed: 0, total: tasks.length, pct: 0 };
+    const isToday = dateKey === todayStr;
+    const pct = Number(entry.pct || 0);
+    const barCol = pct >= 80 ? '#12B76A' : pct >= 50 ? '#5376F8' : pct > 0 ? '#F79009' : '#EB5A8E';
+    const niceDate = formatHistoryDateLabel(dateKey);
+
+    return `
+      <div style="padding: 10px 12px; border-radius: 14px; background: var(--bg-subtle); border: 1px solid ${isToday ? 'rgba(235, 90, 142, 0.35)' : 'var(--border-color)'}; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;" onclick="openReportView()">
+        <div style="min-width: 0; flex: 1;">
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 5px;">
+            <span style="font-size: 12px; font-weight: 800; color: var(--text-main);">${niceDate}</span>
+            <span class="mono" style="font-size: 10.5px; color: var(--text-muted);">(${entry.completed}/${entry.total})</span>
+          </div>
+          <div class="progress-track" style="height: 6px;">
+            <div class="progress-fill" style="width: ${pct}%; background-color: ${barCol};"></div>
+          </div>
+        </div>
+        <span class="action-pill mono" style="background: ${barCol}; font-size: 11px; min-width: 52px;">${pct}%</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function formatHistoryDateLabel(dateStr) {
+  const todayStr = getLocalDateStr();
+  const yDate = new Date();
+  yDate.setDate(yDate.getDate() - 1);
+  const yesterdayStr = getLocalDateStr(yDate);
+
+  if (dateStr === todayStr) return currentLang === 'ml' ? 'ഇന്ന് (Today)' : 'Today';
+  if (dateStr === yesterdayStr) return currentLang === 'ml' ? 'ഇന്നലെ (Yesterday)' : 'Yesterday';
+  try {
+    const parts = dateStr.split('-');
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    return d.toLocaleDateString(currentLang === 'ml' ? 'ml-IN' : 'en-US', { day: 'numeric', month: 'short', weekday: 'short' });
+  } catch (_) {
+    return dateStr;
+  }
 }
 
 // ========================================================
@@ -961,8 +1160,11 @@ function setHabitPeriod(period) {
 
 function updateHabitSquircleTiles() {
   const completed = tasks.filter((t) => t.completed).length;
+  const total = tasks.length || 13;
+  const todayPct = Math.round((completed / total) * 100);
   const spiritualTasks = tasks.filter((t) => t.category === 'spiritual');
   const spiritualDone = spiritualTasks.filter((t) => t.completed).length;
+  const todayDhikr = tasks.filter((t) => t.type === 'counter').reduce((s, t) => s + (t.counterCurrent || 0), 0);
 
   const sq1 = document.getElementById('squircle1Count');
   const sq2 = document.getElementById('squircle2Count');
@@ -972,22 +1174,24 @@ function updateHabitSquircleTiles() {
 
   if (currentHabitPeriod === 'daily') {
     if (sq1) sq1.innerText = `${spiritualDone} / ${spiritualTasks.length}`;
-    if (sq2) sq2.innerText = '300';
+    if (sq2) sq2.innerText = `${todayDhikr} / 300`;
     if (sq3) sq3.innerText = '25 m';
-    if (sq4) sq4.innerText = `${streak} ${currentLang === 'ml' ? 'ദിവസം' : 'Days'}`;
-    if (sq4Label) sq4Label.innerText = currentLang === 'ml' ? 'തുടർച്ച (Streak)' : 'Daily Streak';
+    if (sq4) sq4.innerText = `${todayPct}%`;
+    if (sq4Label) sq4Label.innerText = currentLang === 'ml' ? `ഇന്നത്തെ റിപ്പോർട്ട് (${streak}d)` : `Today (${streak}d streak)`;
   } else if (currentHabitPeriod === 'weekly') {
-    if (sq1) sq1.innerText = '68 / 70';
-    if (sq2) sq2.innerText = '2,100';
+    const w = getPeriodStats(7);
+    if (sq1) sq1.innerText = `${w.completed} / ${w.total}`;
+    if (sq2) sq2.innerText = `${w.daysCount} ${currentLang === 'ml' ? 'ദിവസം' : 'Days'}`;
     if (sq3) sq3.innerText = '3.5 h';
-    if (sq4) sq4.innerText = '94% Score';
-    if (sq4Label) sq4Label.innerText = currentLang === 'ml' ? 'വിജയശതമാനം' : 'Weekly Rate';
+    if (sq4) sq4.innerText = `${w.avgPct}% Avg`;
+    if (sq4Label) sq4Label.innerText = currentLang === 'ml' ? 'ആഴ്ച ശരാശരി (%)' : 'Weekly Average %';
   } else if (currentHabitPeriod === 'monthly') {
-    if (sq1) sq1.innerText = '280 / 300';
-    if (sq2) sq2.innerText = '9,000';
+    const m = getPeriodStats(30);
+    if (sq1) sq1.innerText = `${m.completed} / ${m.total}`;
+    if (sq2) sq2.innerText = `${m.daysCount} ${currentLang === 'ml' ? 'ദിവസം' : 'Days'}`;
     if (sq3) sq3.innerText = '14.8 h';
-    if (sq4) sq4.innerText = '90% Score';
-    if (sq4Label) sq4Label.innerText = currentLang === 'ml' ? 'വിജയശതമാനം' : 'Monthly Rate';
+    if (sq4) sq4.innerText = `${m.avgPct}% Avg`;
+    if (sq4Label) sq4Label.innerText = currentLang === 'ml' ? 'മാസ ശരാശരി (%)' : 'Monthly Average %';
   }
 }
 
@@ -1501,9 +1705,29 @@ function cleanPhoneNumber(raw) {
   return cleaned;
 }
 
-function generateCompletedText() {
+function generateCompletedText(forDateKey = null) {
+  const todayStr = getLocalDateStr();
+  if (forDateKey && forDateKey !== todayStr && dailyHistory[forDateKey]) {
+    const entry = dailyHistory[forDateKey];
+    const dParts = forDateKey.split('-');
+    const niceDate = new Date(Number(dParts[0]), Number(dParts[1]) - 1, Number(dParts[2])).toLocaleDateString('ml-IN', {
+      weekday: 'long', day: 'numeric', month: 'short', year: 'numeric'
+    });
+    let msg = `🌟 *ONE DAY ദിനചര്യ റിപ്പോർട്ട്* 🌟\n`;
+    msg += `📅 തീയതി: ${niceDate}\n`;
+    msg += `📊 ശതമാനം: *${entry.pct}%*\n`;
+    msg += `✅ പൂർത്തിയായവ: ${entry.completed}/${entry.total}\n\n`;
+    if (Array.isArray(entry.completedTitles) && entry.completedTitles.length > 0) {
+      msg += `*പൂർത്തിയാക്കിയവ:*\n`;
+      entry.completedTitles.forEach((title, idx) => { msg += `${idx + 1}. ✔️ ${title}\n`; });
+    }
+    msg += `\nഅൽഹംദുലില്ലാഹ്! 🤲`;
+    return msg;
+  }
+
   const completed = tasks.filter((t) => t.completed);
-  const total = tasks.length;
+  const total = tasks.length || 13;
+  const pct = Math.round((completed.length / total) * 100);
   const dateStr = new Date().toLocaleDateString(currentLang === 'ml' ? 'ml-IN' : 'en-US', {
     weekday: 'long',
     day: 'numeric',
@@ -1514,6 +1738,7 @@ function generateCompletedText() {
   if (currentLang === 'ml') {
     let msg = `🌟 *ONE DAY ദിനചര്യ റിപ്പോർട്ട് - പൂർത്തിയായവ* 🌟\n`;
     msg += `📅 തീയതി: ${dateStr}\n`;
+    msg += `📊 ഇന്നത്തെ ശതമാനം: *${pct}%*\n`;
     msg += `✅ പൂർത്തിയായവ: ${completed.length}/${total}\n`;
     msg += `🔥 തുടർച്ച: ${streak} ദിവസങ്ങൾ\n\n`;
 
@@ -1533,6 +1758,7 @@ function generateCompletedText() {
   } else {
     let msg = `🌟 *ONE DAY DAILY REPORT - COMPLETED* 🌟\n`;
     msg += `📅 Date: ${dateStr}\n`;
+    msg += `📊 Score: *${pct}%*\n`;
     msg += `✅ Completed: ${completed.length}/${total}\n`;
     msg += `🔥 Streak: ${streak} Days\n\n`;
 
@@ -1548,6 +1774,17 @@ function generateCompletedText() {
     msg += `\nAlhamdulillah! Keep going strong. ✨`;
     return msg;
   }
+}
+
+function sendDayHistoryWhatsapp(dateKey) {
+  triggerHaptic([35]);
+  const rawPhone = localStorage.getItem(PHONE_KEY) || '';
+  const phone = cleanPhoneNumber(rawPhone);
+  const text = encodeURIComponent(generateCompletedText(dateKey));
+  const url = phone
+    ? `https://api.whatsapp.com/send?phone=${phone}&text=${text}`
+    : `https://api.whatsapp.com/send?text=${text}`;
+  openWhatsAppUrl(url);
 }
 
 function generatePendingText() {
@@ -1689,10 +1926,12 @@ function executeFullFactoryReset() {
   localStorage.removeItem(STREAK_KEY);
   localStorage.removeItem(LAST_DATE_KEY);
   localStorage.removeItem(DELETED_IDS_KEY);
+  localStorage.removeItem(HISTORY_KEY);
 
+  dailyHistory = {};
   streak = 18;
   localStorage.setItem(STREAK_KEY, '18');
-  localStorage.setItem(LAST_DATE_KEY, new Date().toISOString().split('T')[0]);
+  localStorage.setItem(LAST_DATE_KEY, getLocalDateStr());
   tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS)).map((t) => ({ ...t, updatedAt: nowIso }));
   saveTasksToStorage(true);
   closeResetModal();
@@ -1975,14 +2214,28 @@ function renderCalendarView() {
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   let html = daysOfWeek.map((d) => `<div style="font-size: 11px; font-weight: 800; color: var(--text-muted); padding: 4px;">${d}</div>`).join('');
 
-  const todayDate = new Date().getDate();
-  for (let i = 1; i <= 31; i++) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const todayDate = now.getDate();
+
+  for (let b = 0; b < firstWeekday; b++) {
+    html += `<div></div>`;
+  }
+
+  for (let i = 1; i <= daysInMonth; i++) {
+    const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+    const entry = dailyHistory[key];
     const isToday = i === todayDate;
-    const isPast = i <= todayDate;
+    const pct = entry ? Number(entry.pct || 0) : null;
+    const pctColor = pct === null ? '' : pct >= 80 ? '#12B76A' : pct >= 50 ? '#5376F8' : '#F79009';
+
     html += `
-      <div style="padding: 10px 4px; border-radius: 12px; background: ${isToday ? 'var(--brand-grad)' : isPast ? 'var(--bg-subtle)' : 'transparent'}; color: ${isToday ? '#FFF' : 'inherit'}; border: 1px solid var(--border-color); font-weight: 800; font-size: 12px;">
+      <div style="padding: 8px 4px; border-radius: 12px; background: ${isToday ? 'var(--brand-grad)' : entry ? 'var(--bg-subtle)' : 'transparent'}; color: ${isToday ? '#FFF' : 'inherit'}; border: 1px solid var(--border-color); font-weight: 800; font-size: 12px;">
         ${i}
-        ${isPast ? '<span style="display: block; font-size: 8px; color: #12B76A;">✔</span>' : ''}
+        ${pct !== null ? `<span class="mono" style="display: block; font-size: 9.5px; margin-top: 2px; color: ${isToday ? '#FFF' : pctColor};">${pct}%</span>` : ''}
       </div>
     `;
   }
@@ -2004,32 +2257,81 @@ function setCompReportPeriod(p) {
 
 function renderReportView() {
   const kpiGrid = document.getElementById('reportKpiGrid');
+  const historyList = document.getElementById('reportDailyHistoryTable');
   const breakdownList = document.getElementById('reportBreakdownList');
   if (!kpiGrid || !breakdownList) return;
 
   const completed = tasks.filter((t) => t.completed).length;
   const total = tasks.length || 13;
-  const pct = Math.round((completed / total) * 100);
+  const todayPct = Math.round((completed / total) * 100);
+  const weeklyStats = getPeriodStats(7);
+  const monthlyStats = getPeriodStats(30);
+  const todayDhikr = tasks.filter((t) => t.type === 'counter').reduce((s, t) => s + (t.counterCurrent || 0), 0);
+
+  const mainPct = reportCompPeriod === 'daily' ? todayPct : reportCompPeriod === 'weekly' ? weeklyStats.avgPct : monthlyStats.avgPct;
+  const mainRatioLabel = reportCompPeriod === 'daily'
+    ? `${completed} / ${total} ഇന്നത്തെ ടാസ്ക്`
+    : reportCompPeriod === 'weekly'
+    ? `${weeklyStats.daysCount} ദിവസത്തെ ശരാശരി`
+    : `${monthlyStats.daysCount} ദിവസത്തെ ശരാശരി`;
 
   kpiGrid.innerHTML = `
     <div class="card" style="padding: 16px; border-left: 4px solid var(--pink);">
-      <div style="font-size: 11px; color: var(--text-muted); font-weight: 700;">പൂർത്തീകരണ നിരക്ക്</div>
-      <div class="mono" style="font-size: 26px; font-weight: 900; margin-top: 4px;">${reportCompPeriod === 'daily' ? pct + '%' : reportCompPeriod === 'weekly' ? '92%' : '88%'}</div>
+      <div style="font-size: 11px; color: var(--text-muted); font-weight: 700;">പൂർത്തീകരണ ശതമാനം (%)</div>
+      <div class="mono" style="font-size: 28px; font-weight: 900; margin-top: 4px; color: var(--pink);">${mainPct}%</div>
+      <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 2px;">${mainRatioLabel}</div>
     </div>
     <div class="card" style="padding: 16px; border-left: 4px solid var(--blue);">
       <div style="font-size: 11px; color: var(--text-muted); font-weight: 700;">തുടർച്ച (Streak)</div>
-      <div class="mono" style="font-size: 26px; font-weight: 900; margin-top: 4px;">${streak} Days</div>
+      <div class="mono" style="font-size: 28px; font-weight: 900; margin-top: 4px;">${streak} Days</div>
+      <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 2px;">ഇന്ന്: ${todayPct}%</div>
     </div>
     <div class="card" style="padding: 16px; border-left: 4px solid var(--violet);">
-      <div style="font-size: 11px; color: var(--text-muted); font-weight: 700;">ആകെ ദിക്റ് എണ്ണം</div>
-      <div class="mono" style="font-size: 26px; font-weight: 900; margin-top: 4px;">${reportCompPeriod === 'daily' ? '300' : reportCompPeriod === 'weekly' ? '2,100' : '9,000'}</div>
+      <div style="font-size: 11px; color: var(--text-muted); font-weight: 700;">ഇന്നത്തെ ദിക്റ് എണ്ണം</div>
+      <div class="mono" style="font-size: 28px; font-weight: 900; margin-top: 4px;">${todayDhikr} / 300</div>
+      <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 2px;">ഓരോ ദിവസവും രാത്രി 12-ന് പുതുക്കും</div>
     </div>
   `;
+
+  if (historyList) {
+    const keys = Object.keys(dailyHistory).sort().reverse();
+    if (keys.length === 0) {
+      historyList.innerHTML = `<div style="font-size: 12px; color: var(--text-muted); padding: 12px;">ഇതുവരെ രേഖപ്പെടുത്തിയ ദിവസങ്ങളൊന്നുമില്ല.</div>`;
+    } else {
+      historyList.innerHTML = keys.map((k) => {
+        const entry = dailyHistory[k];
+        const pct = Number(entry.pct || 0);
+        const col = pct >= 80 ? '#12B76A' : pct >= 50 ? '#5376F8' : pct > 0 ? '#F79009' : '#EB5A8E';
+        const titlesPreview = Array.isArray(entry.completedTitles) && entry.completedTitles.length > 0
+          ? entry.completedTitles.join(', ')
+          : (currentLang === 'ml' ? 'ഒന്നും പൂർത്തിയാക്കിയിട്ടില്ല' : 'No completed tasks yet');
+
+        return `
+          <div style="padding: 12px 14px; border-radius: 14px; background: var(--bg-card); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
+            <div class="flex-between" style="flex-wrap: wrap; gap: 8px;">
+              <div>
+                <div style="font-size: 13px; font-weight: 800; color: var(--text-main);">${formatHistoryDateLabel(k)} <span class="mono" style="font-size: 10.5px; color: var(--text-muted); font-weight: 600;">(${k})</span></div>
+                <div class="mono" style="font-size: 11px; color: var(--text-muted); margin-top: 1px;">പൂർത്തിയായവ: ${entry.completed} / ${entry.total} • ദിക്റ്: ${entry.dhikrTotal || 0}</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="action-pill mono" style="background: ${col}; font-size: 12px; padding: 6px 12px;">${pct}%</span>
+                <button class="pill-btn" style="font-size: 11px;" onclick="sendDayHistoryWhatsapp('${k}')">💬 Share</button>
+              </div>
+            </div>
+            <div class="progress-track" style="height: 7px;">
+              <div class="progress-fill" style="width: ${pct}%; background-color: ${col};"></div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">✔️ ${titlesPreview}</div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
 
   breakdownList.innerHTML = tasks.map((t) => `
     <div class="flex-between" style="padding: 8px 12px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-color);">
       <div>
-        <span class="no-strike" style="font-size: 12px; font-weight: 800;">${t.malayalamTitle || t.title}</span>
+        <span class="no-strike" style="font-size: 12px; font-weight: 800;">${getDisplayTitle(t)}</span>
         <span class="mono" style="font-size: 10px; color: var(--text-muted); display: block;">${t.time}</span>
       </div>
       <span class="action-pill" style="background: ${t.completed ? '#12B76A' : '#F79009'}; font-size: 9.5px;">
@@ -2043,12 +2345,12 @@ function renderReportView() {
 // 16. CROSS-TAB & GMAIL CLOUD SYNC ENGINE
 // ========================================================
 function exportOneDayCloudVault() {
-  const lastActiveDate = localStorage.getItem(LAST_DATE_KEY) || new Date().toISOString().split('T')[0];
+  const lastActiveDate = localStorage.getItem(LAST_DATE_KEY) || getLocalDateStr();
   const updatedAt = localStorage.getItem(VAULT_UPDATED_KEY) || new Date().toISOString();
   const settingsUpdatedAt = localStorage.getItem(SETTINGS_UPDATED_KEY) || '2026-01-01T00:00:00.000Z';
   return {
     appName: 'OneDayCloud',
-    version: 1,
+    version: 2,
     updatedAt,
     lastActiveDate,
     streak,
@@ -2056,6 +2358,7 @@ function exportOneDayCloudVault() {
       ...t,
       updatedAt: t.updatedAt || updatedAt
     })),
+    dailyHistory,
     deletedIds: getDeletedIdsLog(),
     settingsUpdatedAt,
     settings: {
@@ -2073,9 +2376,30 @@ function mergeOneDayCloudVault(remoteVault) {
   let changed = false;
 
   try {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateStr();
     const localDate = localStorage.getItem(LAST_DATE_KEY) || todayStr;
     const remoteDate = remoteVault.lastActiveDate || localDate;
+
+    // 0. Merge dailyHistory per date key
+    if (remoteVault.dailyHistory && typeof remoteVault.dailyHistory === 'object') {
+      Object.keys(remoteVault.dailyHistory).forEach((dKey) => {
+        const rEntry = remoteVault.dailyHistory[dKey];
+        if (!rEntry || !dKey) return;
+        const lEntry = dailyHistory[dKey];
+        if (!lEntry) {
+          dailyHistory[dKey] = rEntry;
+          changed = true;
+        } else {
+          const rTs = new Date(rEntry.updatedAt || 0).getTime();
+          const lTs = new Date(lEntry.updatedAt || 0).getTime();
+          if (rTs > lTs || (rTs === lTs && Number(rEntry.pct || 0) > Number(lEntry.pct || 0))) {
+            dailyHistory[dKey] = rEntry;
+            changed = true;
+          }
+        }
+      });
+      if (changed) saveDailyHistory();
+    }
 
     // 1. Merge deleted task tombstones
     const delMap = {};
