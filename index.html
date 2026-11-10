@@ -661,9 +661,14 @@
                 <h4 style="font-size: 14.5px; font-weight: 800;">📊 ഓരോ ദിവസത്തെയും മൊത്തം റിപ്പോർട്ട് (%)</h4>
                 <p style="font-size: 11.5px; color: var(--text-muted);">അർദ്ധരാത്രി 12-ന് ഇന്നത്തെ റിപ്പോർട്ട് സേവ് ആയി അടുത്ത ദിവസം പുതുതായി തുടങ്ങും</p>
               </div>
-              <button class="action-pill" style="background: var(--indigo); font-size: 11px;" onclick="openReportView()">
-                എല്ലാ ദിവസവും കാണുക →
-              </button>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <button class="action-pill" style="background: var(--blue); font-size: 11px;" onclick="switchNav('calendar')">
+                  📅 കലണ്ടർ റിപ്പോർട്ട്
+                </button>
+                <button class="action-pill" style="background: var(--indigo); font-size: 11px;" onclick="openReportView()">
+                  എല്ലാ ദിവസവും കാണുക →
+                </button>
+              </div>
             </div>
             <div id="dashboardDailyHistoryList" style="display: flex; flex-direction: column; gap: 8px;">
               <!-- Dynamically rendered daily percentages -->
@@ -704,15 +709,44 @@
         </section>
 
         <!-- ============================================== -->
-        <!-- VIEW 4: CALENDAR VIEW -->
+        <!-- VIEW 4: INTERACTIVE CALENDAR REPORT EXPLORER -->
         <!-- ============================================== -->
         <section id="viewCalendar" class="space-y-6 hidden">
           <div class="card">
-            <h2 style="font-size: 18px; font-weight: 800; margin-bottom: 6px;">കലണ്ടർ (Monthly Calendar)</h2>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">ദിവസേനയുള്ള തുടർച്ചയും ചരിത്രവും</p>
-            <div id="calendarGridContainer" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; text-align: center;">
+            <div class="flex-between" style="flex-wrap: wrap; gap: 12px; margin-bottom: 14px;">
+              <div>
+                <h2 style="font-size: 18px; font-weight: 800; margin-bottom: 4px;">📅 കലണ്ടർ റിപ്പോർട്ട് (Calendar Explorer)</h2>
+                <p style="font-size: 12px; color: var(--text-muted);">ദിവസം, ആഴ്ച, മാസം, മൊത്തം റിപ്പോർട്ടുകൾ തിരഞ്ഞെടുത്ത് പരിശോധിക്കാം</p>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <button type="button" class="pill-btn" style="font-size: 12px; padding: 6px 10px;" onclick="changeCalendarMonth(-1)" title="Previous Month">◀</button>
+                <input type="month" id="calMonthPicker" onchange="onCalendarMonthPick(this.value)" style="padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-subtle); color: var(--text-main); font-size: 12px; font-weight: 700;">
+                <button type="button" class="pill-btn" style="font-size: 12px; padding: 6px 10px;" onclick="changeCalendarMonth(1)" title="Next Month">▶</button>
+                <button type="button" class="action-pill" style="background: var(--indigo); font-size: 11px; padding: 7px 12px;" onclick="jumpCalendarToday()">ഇന്ന്</button>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+              <div id="calMonthHeadingLabel" style="font-size: 14px; font-weight: 800; color: var(--indigo);">—</div>
+              <div class="period-tabs" style="flex-wrap: wrap;">
+                <button type="button" class="period-tab active" data-calmode="day" onclick="setCalendarReportMode('day')">📅 ദിവസം</button>
+                <button type="button" class="period-tab" data-calmode="week" onclick="setCalendarReportMode('week')">🗓️ ആഴ്ച</button>
+                <button type="button" class="period-tab" data-calmode="month" onclick="setCalendarReportMode('month')">📆 മാസം</button>
+                <button type="button" class="period-tab" data-calmode="total" onclick="setCalendarReportMode('total')">📊 മൊത്തം</button>
+              </div>
+            </div>
+
+            <div id="calendarWeekSelectorRow" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px;">
+              <!-- Week pills populated by JS -->
+            </div>
+
+            <div id="calendarGridContainer" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center;">
               <!-- Calendar grid populated by JS -->
             </div>
+          </div>
+
+          <div class="card" id="calendarReportOutput">
+            <!-- Detailed Day / Week / Month / Total report rendered by JS -->
           </div>
         </section>
 
@@ -726,10 +760,13 @@
                 <h2 style="font-size: 18px; font-weight: 800;">സമ്പൂർണ്ണ റിപ്പോർട്ട് (Performance Report)</h2>
                 <p style="font-size: 12px; color: var(--text-muted);">ഓരോ ദിവസത്തെയും ആഴ്ചയുടെയും മാസത്തിന്റെയും habit അവലോകനം</p>
               </div>
-              <div class="period-tabs">
-                <button class="period-tab active" data-compr="daily" onclick="setCompReportPeriod('daily')">ദിവസം</button>
-                <button class="period-tab" data-compr="weekly" onclick="setCompReportPeriod('weekly')">ആഴ്ച</button>
-                <button class="period-tab" data-compr="monthly" onclick="setCompReportPeriod('monthly')">മാസം</button>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <button type="button" class="action-pill" style="background: var(--blue); font-size: 11px;" onclick="switchNav('calendar')">📅 കലണ്ടർ</button>
+                <div class="period-tabs">
+                  <button class="period-tab active" data-compr="daily" onclick="setCompReportPeriod('daily')">ദിവസം</button>
+                  <button class="period-tab" data-compr="weekly" onclick="setCompReportPeriod('weekly')">ആഴ്ച</button>
+                  <button class="period-tab" data-compr="monthly" onclick="setCompReportPeriod('monthly')">മാസം</button>
+                </div>
               </div>
             </div>
 

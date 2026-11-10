@@ -386,10 +386,20 @@ function saveDailyHistory() {
   } catch (_) {}
 }
 
+function escapeHtmlText(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function recordDailySnapshot(dateStr = getLocalDateStr()) {
   if (!Array.isArray(tasks)) return;
   const totalCount = tasks.length;
   const completedTasks = tasks.filter((t) => t.completed);
+  const pendingTasks = tasks.filter((t) => !t.completed);
   const completedCount = completedTasks.length;
   const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
   const dhikrTotal = tasks
@@ -398,6 +408,11 @@ function recordDailySnapshot(dateStr = getLocalDateStr()) {
   const readingMins = tasks
     .filter((t) => t.type === 'reading')
     .reduce((sum, t) => sum + ((t.readingDetails && t.readingDetails.minutesSpent) || 0), 0);
+  const addedTasks = tasks.filter((t) => {
+    if (t.createdDate) return t.createdDate === dateStr;
+    if (t.createdAt) return getLocalDateStr(new Date(t.createdAt)) === dateStr;
+    return false;
+  });
 
   dailyHistory[dateStr] = {
     date: dateStr,
@@ -407,6 +422,8 @@ function recordDailySnapshot(dateStr = getLocalDateStr()) {
     dhikrTotal,
     readingMins,
     completedTitles: completedTasks.map((t) => getDisplayTitle(t)),
+    pendingTitles: pendingTasks.map((t) => getDisplayTitle(t)),
+    addedTitles: addedTasks.map((t) => getDisplayTitle(t)),
     updatedAt: new Date().toISOString()
   };
   saveDailyHistory();
@@ -2095,6 +2112,9 @@ function saveNewTask() {
         endPage: '15',
         notes: ''
       } : undefined,
+      isCustom: true,
+      createdDate: getLocalDateStr(),
+      createdAt: nowIso,
       updatedAt: nowIso
     };
     tasks.push(newTask);
@@ -2207,39 +2227,692 @@ function renderMyTasksView() {
   `).join('');
 }
 
+let calViewYear = null;
+let calViewMonth = null; // 0-indexed (0..11)
+let calSelectedDate = null; // YYYY-MM-DD
+let calReportMode = 'day'; // 'day' | 'week' | 'month' | 'total'
+let calSelectedWeekIndex = 0;
+let _lastCalendarShareText = '';
+
+function ensureCalendarStateInitialized() {
+  const todayStr = getLocalDateStr();
+  if (!calSelectedDate) calSelectedDate = todayStr;
+  if (calViewYear === null || calViewMonth === null) {
+    const [y, m, d] = todayStr.split('-').map((n) => parseInt(n, 10));
+    calViewYear = y;
+    calViewMonth = m - 1;
+    calSelectedWeekIndex = getWeekIndexForDateInMonth(calViewYear, calViewMonth, d);
+  }
+}
+
+function getCalendarMonthNames() {
+  return currentLang === 'ml'
+    ? ['ജനുവരി', 'ഫെബ്രുവരി', 'മാർച്ച്', 'ഏപ്രിൽ', 'മേയ്', 'ജൂൺ', 'ജൂലൈ', 'ഓഗസ്റ്റ്', 'സെപ്റ്റംബർ', 'ഒക്ടോബർ', 'നവംബർ', 'ഡിസംബർ']
+    : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+}
+
+function formatCalendarMonthName(year, month0) {
+  const names = getCalendarMonthNames();
+  return `${names[month0] || ''} ${year}`;
+}
+
+function getWeekIndexForDateInMonth(year, month0, dayNum) {
+  const firstWeekday = new Date(year, month0, 1).getDay();
+  return Math.max(0, Math.floor((firstWeekday + dayNum - 1) / 7));
+}
+
+function getMonthWeeks(year, month0) {
+  const daysInMonth = new Date(year, month0 + 1, 0).getDate();
+  const firstWeekday = new Date(year, month0, 1).getDay();
+  const mm = String(month0 + 1).padStart(2, '0');
+  const map = {};
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const wIdx = Math.floor((firstWeekday + d - 1) / 7);
+    const key = `${year}-${mm}-${String(d).padStart(2, '0')}`;
+    if (!map[wIdx]) map[wIdx] = [];
+    map[wIdx].push({ day: d, date: key });
+  }
+
+  return Object.keys(map)
+    .map((k) => parseInt(k, 10))
+    .sort((a, b) => a - b)
+    .map((wIdx, listIdx) => {
+      const items = map[wIdx];
+      const firstDay = items[0].day;
+      const lastDay = items[items.length - 1].day;
+      return {
+        index: listIdx,
+        gridRowIndex: wIdx,
+        days: items.map((x) => x.date),
+        shortRange: firstDay === lastDay ? `${firstDay}` : `${firstDay}–${lastDay}`
+      };
+    });
+}
+
+function getAddedTitlesForDate(dateStr) {
+  const entry = dailyHistory[dateStr];
+  const fromHistory = entry && Array.isArray(entry.addedTitles) ? entry.addedTitles : [];
+  const fromLiveTasks = (tasks || [])
+    .filter((t) => {
+      if (t.createdDate) return t.createdDate === dateStr;
+      if (t.isCustom && t.createdAt) return getLocalDateStr(new Date(t.createdAt)) === dateStr;
+      return false;
+    })
+    .map((t) => getDisplayTitle(t));
+
+  const seen = new Set();
+  const merged = [];
+  [...fromLiveTasks, ...fromHistory].forEach((title) => {
+    const clean = String(title || '').trim();
+    if (clean && !seen.has(clean)) {
+      seen.add(clean);
+      merged.push(clean);
+    }
+  });
+  return merged;
+}
+
+function getDateRecordOrLive(dateStr) {
+  const todayStr = getLocalDateStr();
+  const addedTitles = getAddedTitlesForDate(dateStr);
+
+  if (dateStr === todayStr && Array.isArray(tasks) && tasks.length > 0) {
+    const completedTasks = tasks.filter((t) => t.completed);
+    const pendingTasks = tasks.filter((t) => !t.completed);
+    const total = tasks.length;
+    const completed = completedTasks.length;
+    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const dhikrTotal = tasks.filter((t) => t.type === 'counter').reduce((s, t) => s + (t.counterCurrent || 0), 0);
+    const readingMins = tasks.filter((t) => t.type === 'reading').reduce((s, t) => s + ((t.readingDetails && t.readingDetails.minutesSpent) || 0), 0);
+    return {
+      date: dateStr,
+      completed,
+      total,
+      pct,
+      dhikrTotal,
+      readingMins,
+      completedTitles: completedTasks.map((t) => getDisplayTitle(t)),
+      pendingTitles: pendingTasks.map((t) => getDisplayTitle(t)),
+      addedTitles,
+      isLiveToday: true
+    };
+  }
+
+  const entry = dailyHistory[dateStr];
+  if (entry) {
+    return {
+      date: dateStr,
+      completed: Number(entry.completed || 0),
+      total: Number(entry.total || 0),
+      pct: Number(entry.pct || 0),
+      dhikrTotal: Number(entry.dhikrTotal || 0),
+      readingMins: Number(entry.readingMins || 0),
+      completedTitles: Array.isArray(entry.completedTitles) ? entry.completedTitles : [],
+      pendingTitles: Array.isArray(entry.pendingTitles) ? entry.pendingTitles : [],
+      addedTitles,
+      isLiveToday: false
+    };
+  }
+
+  if (addedTitles.length > 0) {
+    return {
+      date: dateStr,
+      completed: 0,
+      total: 0,
+      pct: 0,
+      dhikrTotal: 0,
+      readingMins: 0,
+      completedTitles: [],
+      pendingTitles: [],
+      addedTitles,
+      isLiveToday: false
+    };
+  }
+
+  return null;
+}
+
+function aggregateDateKeysStats(dateKeys) {
+  const entries = [];
+  let sumPct = 0;
+  let totalCompleted = 0;
+  let totalTasks = 0;
+  let totalDhikr = 0;
+  let totalReadingMins = 0;
+  const addedItems = [];
+  const completedFreq = {};
+  const seenAdded = new Set();
+
+  dateKeys.forEach((dateKey) => {
+    const rec = getDateRecordOrLive(dateKey);
+    if (!rec) return;
+    entries.push(rec);
+    if (rec.total > 0) {
+      sumPct += rec.pct;
+      totalCompleted += rec.completed;
+      totalTasks += rec.total;
+    }
+    totalDhikr += rec.dhikrTotal || 0;
+    totalReadingMins += rec.readingMins || 0;
+
+    (rec.addedTitles || []).forEach((title) => {
+      const uniq = `${dateKey}::${title}`;
+      if (!seenAdded.has(uniq)) {
+        seenAdded.add(uniq);
+        addedItems.push({ date: dateKey, title });
+      }
+    });
+
+    (rec.completedTitles || []).forEach((title) => {
+      completedFreq[title] = (completedFreq[title] || 0) + 1;
+    });
+  });
+
+  const activeTaskDays = entries.filter((e) => e.total > 0).length;
+  const avgPct = activeTaskDays > 0 ? Math.round(sumPct / activeTaskDays) : 0;
+  const weightedPct = totalTasks > 0 ? Math.round((totalCompleted / totalTasks) * 100) : 0;
+  const topCompleted = Object.keys(completedFreq)
+    .map((title) => ({ title, count: completedFreq[title] }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    entries,
+    activeTaskDays,
+    avgPct,
+    weightedPct,
+    totalCompleted,
+    totalTasks,
+    totalDhikr,
+    totalReadingMins,
+    addedItems,
+    topCompleted
+  };
+}
+
+function getCalendarPctColor(pct) {
+  if (pct >= 80) return '#12B76A';
+  if (pct >= 50) return '#5376F8';
+  if (pct > 0) return '#F79009';
+  return '#EB5A8E';
+}
+
+function buildCalendarKpiGrid(cards) {
+  return `
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 10px; margin-bottom: 16px;">
+      ${cards.map((c) => `
+        <div style="padding: 12px 14px; border-radius: 14px; background: var(--bg-subtle); border: 1px solid var(--border-color); border-left: 4px solid ${c.color};">
+          <div style="font-size: 11px; color: var(--text-muted); font-weight: 700;">${c.label}</div>
+          <div class="mono" style="font-size: 22px; font-weight: 900; margin-top: 3px; color: ${c.color};">${c.value}</div>
+          <div style="font-size: 10.5px; color: var(--text-muted); font-weight: 600; margin-top: 2px;">${c.sub}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderCalendarTitleBadges(titles, emptyText, bg, color, iconPrefix) {
+  if (!titles || titles.length === 0) {
+    return `<div style="font-size: 12px; color: var(--text-muted); padding: 8px 0;">${emptyText}</div>`;
+  }
+  return `
+    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;">
+      ${titles.map((title) => `
+        <span style="padding: 5px 10px; border-radius: 999px; background: ${bg}; color: ${color}; font-size: 11.5px; font-weight: 700;">
+          ${iconPrefix} ${escapeHtmlText(title)}
+        </span>
+      `).join('')}
+    </div>
+  `;
+}
+
+function changeCalendarMonth(delta) {
+  ensureCalendarStateInitialized();
+  const next = new Date(calViewYear, calViewMonth + delta, 1);
+  calViewYear = next.getFullYear();
+  calViewMonth = next.getMonth();
+  pickDefaultDayInViewedMonth();
+  if (calReportMode === 'total') calReportMode = 'month';
+  renderCalendarView();
+}
+
+function onCalendarMonthPick(ymStr) {
+  if (!ymStr || !/^\d{4}-\d{2}$/.test(ymStr)) return;
+  const [y, m] = ymStr.split('-').map((n) => parseInt(n, 10));
+  calViewYear = y;
+  calViewMonth = m - 1;
+  pickDefaultDayInViewedMonth();
+  if (calReportMode === 'total') calReportMode = 'month';
+  renderCalendarView();
+}
+
+function jumpCalendarToday() {
+  const todayStr = getLocalDateStr();
+  const [y, m, d] = todayStr.split('-').map((n) => parseInt(n, 10));
+  calViewYear = y;
+  calViewMonth = m - 1;
+  calSelectedDate = todayStr;
+  calSelectedWeekIndex = getWeekIndexForDateInMonth(y, m - 1, d);
+  calReportMode = 'day';
+  renderCalendarView();
+}
+
+function pickDefaultDayInViewedMonth() {
+  const prefix = `${calViewYear}-${String(calViewMonth + 1).padStart(2, '0')}-`;
+  const todayStr = getLocalDateStr();
+  if (todayStr.startsWith(prefix)) {
+    calSelectedDate = todayStr;
+  } else {
+    const monthKeys = Object.keys(dailyHistory).filter((k) => k.startsWith(prefix)).sort();
+    calSelectedDate = monthKeys.length > 0 ? monthKeys[monthKeys.length - 1] : `${prefix}01`;
+  }
+  const dayNum = parseInt(calSelectedDate.split('-')[2], 10) || 1;
+  calSelectedWeekIndex = getWeekIndexForDateInMonth(calViewYear, calViewMonth, dayNum);
+}
+
+function setCalendarReportMode(mode) {
+  ensureCalendarStateInitialized();
+  calReportMode = mode;
+  renderCalendarView();
+}
+
+function selectCalendarDate(dateStr) {
+  if (!dateStr) return;
+  const [y, m, d] = dateStr.split('-').map((n) => parseInt(n, 10));
+  calViewYear = y;
+  calViewMonth = m - 1;
+  calSelectedDate = dateStr;
+  calSelectedWeekIndex = getWeekIndexForDateInMonth(y, m - 1, d);
+  if (calReportMode !== 'week') {
+    calReportMode = 'day';
+  }
+  renderCalendarView();
+}
+
+function selectCalendarDayAndOpen(dateStr) {
+  calReportMode = 'day';
+  selectCalendarDate(dateStr);
+}
+
+function selectCalendarWeek(weekIdx) {
+  ensureCalendarStateInitialized();
+  calSelectedWeekIndex = weekIdx;
+  calReportMode = 'week';
+  const weeks = getMonthWeeks(calViewYear, calViewMonth);
+  if (weeks[weekIdx] && weeks[weekIdx].days.length > 0) {
+    calSelectedDate = weeks[weekIdx].days[0];
+  }
+  renderCalendarView();
+}
+
+function jumpToCalendarMonth(year, month0) {
+  calViewYear = year;
+  calViewMonth = month0;
+  pickDefaultDayInViewedMonth();
+  calReportMode = 'month';
+  renderCalendarView();
+}
+
+function shareCalendarReportWhatsapp() {
+  if (!_lastCalendarShareText) return;
+  triggerHaptic([35]);
+  const rawPhone = localStorage.getItem(PHONE_KEY) || '';
+  const phone = cleanPhoneNumber(rawPhone);
+  const text = encodeURIComponent(_lastCalendarShareText);
+  const url = phone
+    ? `https://api.whatsapp.com/send?phone=${phone}&text=${text}`
+    : `https://api.whatsapp.com/send?text=${text}`;
+  openWhatsAppUrl(url);
+}
+
 function renderCalendarView() {
+  ensureCalendarStateInitialized();
+  const picker = document.getElementById('calMonthPicker');
+  const monthLabel = document.getElementById('calMonthHeadingLabel');
+  const ymVal = `${calViewYear}-${String(calViewMonth + 1).padStart(2, '0')}`;
+
+  if (picker && picker.value !== ymVal) picker.value = ymVal;
+  if (monthLabel) monthLabel.innerText = formatCalendarMonthName(calViewYear, calViewMonth);
+
+  document.querySelectorAll('.period-tabs button[data-calmode]').forEach((btn) => {
+    if (btn.getAttribute('data-calmode') === calReportMode) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  const weeks = getMonthWeeks(calViewYear, calViewMonth);
+  if (calSelectedWeekIndex >= weeks.length) calSelectedWeekIndex = weeks.length - 1;
+  if (calSelectedWeekIndex < 0) calSelectedWeekIndex = 0;
+
+  renderCalendarWeekPills(weeks);
+  renderCalendarGrid(weeks);
+  renderCalendarReportPanel(weeks);
+}
+
+function renderCalendarWeekPills(weeks) {
+  const row = document.getElementById('calendarWeekSelectorRow');
+  if (!row) return;
+
+  row.innerHTML = weeks.map((w) => {
+    const active = calReportMode === 'week' && calSelectedWeekIndex === w.index;
+    return `
+      <button type="button" onclick="selectCalendarWeek(${w.index})"
+        style="padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; cursor: pointer; border: 1px solid ${active ? 'var(--indigo)' : 'var(--border-color)'}; background: ${active ? 'var(--indigo)' : 'var(--bg-subtle)'}; color: ${active ? '#FFF' : 'var(--text-main)'};">
+        ${currentLang === 'ml' ? `ആഴ്ച ${w.index + 1}` : `Week ${w.index + 1}`} (${w.shortRange})
+      </button>
+    `;
+  }).join('');
+}
+
+function renderCalendarGrid(weeks) {
   const container = document.getElementById('calendarGridContainer');
   if (!container) return;
 
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   let html = daysOfWeek.map((d) => `<div style="font-size: 11px; font-weight: 800; color: var(--text-muted); padding: 4px;">${d}</div>`).join('');
 
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstWeekday = new Date(year, month, 1).getDay();
-  const todayDate = now.getDate();
+  const daysInMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate();
+  const firstWeekday = new Date(calViewYear, calViewMonth, 1).getDay();
+  const todayStr = getLocalDateStr();
+  const activeWeekObj = weeks[calSelectedWeekIndex];
+  const activeWeekDays = activeWeekObj ? new Set(activeWeekObj.days) : new Set();
 
   for (let b = 0; b < firstWeekday; b++) {
     html += `<div></div>`;
   }
 
   for (let i = 1; i <= daysInMonth; i++) {
-    const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-    const entry = dailyHistory[key];
-    const isToday = i === todayDate;
-    const pct = entry ? Number(entry.pct || 0) : null;
-    const pctColor = pct === null ? '' : pct >= 80 ? '#12B76A' : pct >= 50 ? '#5376F8' : '#F79009';
+    const key = `${calViewYear}-${String(calViewMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+    const rec = getDateRecordOrLive(key);
+    const isToday = key === todayStr;
+    const isSelectedDay = key === calSelectedDate && calReportMode === 'day';
+    const isSelectedWeek = calReportMode === 'week' && activeWeekDays.has(key);
+    const hasPct = rec && rec.total > 0;
+    const pct = hasPct ? Number(rec.pct || 0) : null;
+    const pctColor = pct === null ? '' : getCalendarPctColor(pct);
+    const addedCount = rec && rec.addedTitles ? rec.addedTitles.length : 0;
+
+    let bg = rec ? 'var(--bg-subtle)' : 'transparent';
+    let textColor = 'inherit';
+    let border = '1px solid var(--border-color)';
+
+    if (isSelectedWeek) {
+      bg = 'rgba(83, 118, 248, 0.14)';
+      border = '1.5px solid var(--indigo)';
+    }
+    if (isToday && !isSelectedDay) {
+      border = '2px solid var(--pink)';
+    }
+    if (isSelectedDay) {
+      bg = 'var(--brand-grad)';
+      textColor = '#FFF';
+      border = '2px solid var(--pink)';
+    }
 
     html += `
-      <div style="padding: 8px 4px; border-radius: 12px; background: ${isToday ? 'var(--brand-grad)' : entry ? 'var(--bg-subtle)' : 'transparent'}; color: ${isToday ? '#FFF' : 'inherit'}; border: 1px solid var(--border-color); font-weight: 800; font-size: 12px;">
-        ${i}
-        ${pct !== null ? `<span class="mono" style="display: block; font-size: 9.5px; margin-top: 2px; color: ${isToday ? '#FFF' : pctColor};">${pct}%</span>` : ''}
-      </div>
+      <button type="button" onclick="selectCalendarDate('${key}')"
+        style="padding: 7px 3px; border-radius: 12px; background: ${bg}; color: ${textColor}; border: ${border}; font-weight: 800; font-size: 12px; cursor: pointer; position: relative; min-height: 46px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;">
+        <span>${i}${addedCount > 0 ? `<span title="${addedCount} added" style="font-size: 9px; margin-left: 2px; color: ${isSelectedDay ? '#FFF' : 'var(--indigo)'};">+${addedCount}</span>` : ''}</span>
+        ${pct !== null ? `<span class="mono" style="font-size: 9.5px; color: ${isSelectedDay ? '#FFF' : pctColor};">${pct}%</span>` : '<span style="font-size: 9px; opacity: 0.35;">·</span>'}
+      </button>
     `;
   }
   container.innerHTML = html;
+}
+
+function renderCalendarReportPanel(weeks) {
+  const out = document.getElementById('calendarReportOutput');
+  if (!out) return;
+
+  if (calReportMode === 'day') {
+    const rec = getDateRecordOrLive(calSelectedDate);
+    const dateLabel = formatHistoryDateLabel(calSelectedDate);
+    const pct = rec && rec.total > 0 ? rec.pct : 0;
+    const pctCol = getCalendarPctColor(pct);
+    const completed = rec ? rec.completed : 0;
+    const total = rec ? rec.total : 0;
+    const addedTitles = rec ? rec.addedTitles : [];
+    const completedTitles = rec ? rec.completedTitles : [];
+    const pendingTitles = rec ? rec.pendingTitles : [];
+    const dhikr = rec ? rec.dhikrTotal : 0;
+    const mins = rec ? rec.readingMins : 0;
+
+    _lastCalendarShareText =
+      `📅 *ONE DAY - ദിവസത്തെ റിപ്പോർട്ട്*\n` +
+      `തിയതി: ${dateLabel} (${calSelectedDate})\n` +
+      `📊 ശതമാനം: *${pct}%* (${completed}/${total})\n` +
+      (addedTitles.length > 0 ? `➕ പുതുതായി ചേർത്തത്: ${addedTitles.join(', ')}\n` : '') +
+      (completedTitles.length > 0 ? `✔️ പൂർത്തിയാക്കിയവ:\n${completedTitles.map((t, idx) => `${idx + 1}. ${t}`).join('\n')}\n` : '✔️ ഒന്നും പൂർത്തിയാക്കിയിട്ടില്ല.\n') +
+      (pendingTitles.length > 0 ? `⏳ ബാക്കിയുള്ളവ: ${pendingTitles.join(', ')}\n` : '');
+
+    out.innerHTML = `
+      <div class="flex-between" style="flex-wrap: wrap; gap: 10px; margin-bottom: 14px;">
+        <div>
+          <h3 style="font-size: 16px; font-weight: 800;">📅 ${dateLabel} — ദിവസത്തെ റിപ്പോർട്ട്</h3>
+          <div class="mono" style="font-size: 11px; color: var(--text-muted);">${calSelectedDate}${rec && rec.isLiveToday ? ' • തത്സമയം (Live)' : ''}</div>
+        </div>
+        <button type="button" class="action-pill" style="background: #12B76A; font-size: 11px;" onclick="shareCalendarReportWhatsapp()">💬 WhatsApp Share</button>
+      </div>
+
+      ${buildCalendarKpiGrid([
+        { label: 'പൂർത്തീകരണ %', value: `${pct}%`, sub: total > 0 ? `${completed} / ${total} ടാസ്കുകൾ` : 'രേഖകളില്ല', color: pctCol },
+        { label: 'പുതുതായി ചേർത്തവ', value: `${addedTitles.length}`, sub: 'ഈ ദിവസം ആഡ് ചെയ്തത്', color: 'var(--indigo)' },
+        { label: 'ദിക്റ് എണ്ണം', value: `${dhikr}`, sub: 'ആകെ തസ്ബീഹ്', color: 'var(--violet)' },
+        { label: 'വായന സമയം', value: `${mins}m`, sub: 'Reading Minutes', color: 'var(--blue)' }
+      ])}
+
+      ${!rec ? `
+        <div style="padding: 16px; border-radius: 14px; background: var(--bg-subtle); border: 1px solid var(--border-color); font-size: 12.5px; color: var(--text-muted);">
+          ഈ ദിവസത്തിൽ (${calSelectedDate}) രേഖപ്പെടുത്തിയ ടാസ്കുകളോ എൻട്രികളോ ഇല്ല. മറ്റൊരു ദിവസം, ആഴ്ച, മാസം, അല്ലെങ്കിൽ 'മൊത്തം' തിരഞ്ഞെടുത്തു നോക്കൂ.
+        </div>
+      ` : `
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="padding: 12px 14px; border-radius: 14px; background: var(--bg-subtle); border: 1px solid var(--border-color);">
+            <div style="font-size: 12.5px; font-weight: 800;">➕ ഈ ദിവസം ചേർത്ത ടാസ്കുകൾ (${addedTitles.length})</div>
+            ${renderCalendarTitleBadges(addedTitles, 'ഈ ദിവസം പുതുതായി ടാസ്കുകളൊന്നും ചേർത്തിട്ടില്ല.', 'rgba(83, 118, 248, 0.12)', 'var(--indigo)', '+')}
+          </div>
+          <div style="padding: 12px 14px; border-radius: 14px; background: var(--bg-subtle); border: 1px solid var(--border-color);">
+            <div style="font-size: 12.5px; font-weight: 800;">✔️ പൂർത്തിയാക്കിയവ (${completedTitles.length})</div>
+            ${renderCalendarTitleBadges(completedTitles, 'ഈ ദിവസം പൂർത്തിയാക്കിയ ടാസ്കുകളൊന്നുമില്ല.', 'rgba(18, 183, 106, 0.14)', '#0F9455', '✔️')}
+          </div>
+          <div style="padding: 12px 14px; border-radius: 14px; background: var(--bg-subtle); border: 1px solid var(--border-color);">
+            <div style="font-size: 12.5px; font-weight: 800;">⏳ ബാക്കിയുള്ളവ / പൂർത്തിയാക്കാത്തവ (${pendingTitles.length})</div>
+            ${renderCalendarTitleBadges(pendingTitles, total > 0 ? 'എല്ലാ ടാസ്കുകളും പൂർത്തിയായി! 🎉' : 'വിവരങ്ങളൊന്നുമില്ല.', 'rgba(247, 144, 9, 0.14)', '#B54708', '⏳')}
+          </div>
+        </div>
+      `}
+    `;
+    return;
+  }
+
+  if (calReportMode === 'week') {
+    const activeWeek = weeks[calSelectedWeekIndex] || { index: 0, days: [], shortRange: '' };
+    const monthTitle = formatCalendarMonthName(calViewYear, calViewMonth);
+    const stats = aggregateDateKeysStats(activeWeek.days);
+    const pctCol = getCalendarPctColor(stats.avgPct);
+
+    _lastCalendarShareText =
+      `🗓️ *ONE DAY - ആഴ്ചയിലെ റിപ്പോർട്ട്*\n` +
+      `${monthTitle} • ആഴ്ച ${activeWeek.index + 1} (${activeWeek.shortRange})\n` +
+      `📊 ശരാശരി ശതമാനം: *${stats.avgPct}%*\n` +
+      `✅ പൂർത്തിയായവ: ${stats.totalCompleted} / ${stats.totalTasks}\n` +
+      `📆 രേഖപ്പെടുത്തിയ ദിവസങ്ങൾ: ${stats.activeTaskDays}\n` +
+      (stats.addedItems.length > 0 ? `➕ ഈ ആഴ്ച ചേർത്തവ: ${stats.addedItems.map((x) => `${x.title} (${x.date})`).join(', ')}\n` : '');
+
+    out.innerHTML = renderCalendarAggregatedBody({
+      heading: `🗓️ ${monthTitle} — ആഴ്ച ${activeWeek.index + 1} (${activeWeek.shortRange})`,
+      subtitle: 'താഴെ കാണുന്ന ഏത് ദിവസവും ക്ലിക്ക് ചെയ്ത് ആ ദിവസത്തെ പൂർണ്ണ വിവരം കാണാം',
+      stats,
+      pctCol,
+      dayKeysForCards: activeWeek.days
+    });
+    return;
+  }
+
+  if (calReportMode === 'month') {
+    const monthTitle = formatCalendarMonthName(calViewYear, calViewMonth);
+    const daysInMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate();
+    const mm = String(calViewMonth + 1).padStart(2, '0');
+    const monthDays = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      monthDays.push(`${calViewYear}-${mm}-${String(d).padStart(2, '0')}`);
+    }
+    const stats = aggregateDateKeysStats(monthDays);
+    const pctCol = getCalendarPctColor(stats.avgPct);
+
+    _lastCalendarShareText =
+      `📆 *ONE DAY - മാസത്തെ റിപ്പോർട്ട് (${monthTitle})*\n` +
+      `📊 മാസ ശരാശരി: *${stats.avgPct}%*\n` +
+      `✅ ആകെ പൂർത്തിയായത്: ${stats.totalCompleted} / ${stats.totalTasks}\n` +
+      `📅 സജീവ ദിവസങ്ങൾ: ${stats.activeTaskDays}\n` +
+      `📿 ആകെ ദിക്റ്: ${stats.totalDhikr}\n` +
+      (stats.addedItems.length > 0 ? `➕ ഈ മാസം ചേർത്ത ടാസ്കുകൾ: ${stats.addedItems.map((x) => x.title).join(', ')}\n` : '');
+
+    out.innerHTML = renderCalendarAggregatedBody({
+      heading: `📆 ${monthTitle} — മാസത്തെ റിപ്പോർട്ട്`,
+      subtitle: `${daysInMonth} ദിവസങ്ങളിൽ രേഖപ്പെടുത്തിയ ആകെ പ്രകടനവും ചേർത്ത ടാസ്കുകളും`,
+      stats,
+      pctCol,
+      dayKeysForCards: stats.entries.map((e) => e.date).reverse()
+    });
+    return;
+  }
+
+  // TOTAL (OVERALL) MODE
+  const keySet = new Set(Object.keys(dailyHistory || {}));
+  keySet.add(getLocalDateStr());
+  (tasks || []).forEach((t) => {
+    if (t.createdDate) keySet.add(t.createdDate);
+  });
+  const allKeys = Array.from(keySet).sort();
+  const stats = aggregateDateKeysStats(allKeys);
+  const pctCol = getCalendarPctColor(stats.avgPct);
+
+  // Group into YYYY-MM buckets for interactive Month breakdown
+  const monthBuckets = {};
+  stats.entries.forEach((rec) => {
+    const ym = rec.date.slice(0, 7);
+    if (!monthBuckets[ym]) monthBuckets[ym] = [];
+    monthBuckets[ym].push(rec.date);
+  });
+  const monthKeys = Object.keys(monthBuckets).sort().reverse();
+
+  _lastCalendarShareText =
+    `📊 *ONE DAY - ഇതുവരെയുള്ള മൊത്തം റിപ്പോർട്ട്*\n` +
+    `📈 മൊത്തം ശതമാനം: *${stats.avgPct}%*\n` +
+    `✅ ആകെ പൂർത്തിയാക്കിയ ടാസ്കുകൾ: ${stats.totalCompleted} / ${stats.totalTasks}\n` +
+    `📅 രേഖപ്പെടുത്തിയ ദിവസങ്ങൾ: ${stats.activeTaskDays}\n` +
+    `🔥 തുടർച്ച (Streak): ${streak} ദിവസങ്ങൾ\n` +
+    `📿 ആകെ ദിക്റ്: ${stats.totalDhikr} • 📚 വായന: ${stats.totalReadingMins} മിനിറ്റ്\n`;
+
+  const monthCardsHtml = monthKeys.length === 0
+    ? `<div style="font-size: 12px; color: var(--text-muted); padding: 8px 0;">ഇതുവരെ മാസ രേഖകളൊന്നുമില്ല.</div>`
+    : monthKeys.map((ym) => {
+        const [yy, mm] = ym.split('-').map((n) => parseInt(n, 10));
+        const mStats = aggregateDateKeysStats(monthBuckets[ym]);
+        const mCol = getCalendarPctColor(mStats.avgPct);
+        return `
+          <div onclick="jumpToCalendarMonth(${yy}, ${mm - 1})" style="padding: 10px 12px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;">
+            <div>
+              <div style="font-size: 13px; font-weight: 800;">📆 ${formatCalendarMonthName(yy, mm - 1)}</div>
+              <div class="mono" style="font-size: 11px; color: var(--text-muted);">${mStats.activeTaskDays} ദിവസം • ${mStats.totalCompleted}/${mStats.totalTasks} ടാസ്ക്</div>
+            </div>
+            <span class="action-pill mono" style="background: ${mCol}; font-size: 11.5px;">${mStats.avgPct}% →</span>
+          </div>
+        `;
+      }).join('');
+
+  out.innerHTML = `
+    <div class="flex-between" style="flex-wrap: wrap; gap: 10px; margin-bottom: 14px;">
+      <div>
+        <h3 style="font-size: 16px; font-weight: 800;">📊 ഇതുവരെയുള്ള മൊത്തം റിപ്പോർട്ട് (Overall Total)</h3>
+        <div style="font-size: 11.5px; color: var(--text-muted);">ചെയ്ത എല്ലാ ടാസ്കുകളുടെയും ചേർത്ത ടാസ്കുകളുടെയും സമ്പൂർണ്ണ കണക്ക്</div>
+      </div>
+      <button type="button" class="action-pill" style="background: #12B76A; font-size: 11px;" onclick="shareCalendarReportWhatsapp()">💬 WhatsApp Share</button>
+    </div>
+
+    ${buildCalendarKpiGrid([
+      { label: 'മൊത്തം ശതമാനം %', value: `${stats.avgPct}%`, sub: `ശരാശരി (${stats.activeTaskDays} ദിവസം)`, color: pctCol },
+      { label: 'ആകെ പൂർത്തിയായത്', value: `${stats.totalCompleted}/${stats.totalTasks}`, sub: `ഭാരം: ${stats.weightedPct}%`, color: 'var(--blue)' },
+      { label: 'ചേർത്ത ടാസ്കുകൾ', value: `${stats.addedItems.length}`, sub: 'പുതുതായി ആഡ് ചെയ്തവ', color: 'var(--indigo)' },
+      { label: 'തുടർച്ച & ദിക്റ്', value: `${streak}d / ${stats.totalDhikr}`, sub: `വായന: ${stats.totalReadingMins}m`, color: 'var(--violet)' }
+    ])}
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="padding: 12px 14px; border-radius: 14px; background: var(--bg-subtle); border: 1px solid var(--border-color);">
+        <div style="font-size: 12.5px; font-weight: 800; margin-bottom: 8px;">📆 മാസം തിരിച്ചുള്ള റിപ്പോർട്ട് (മാസത്തിൽ ക്ലിക്ക് ചെയ്ത് തുറക്കാം)</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">${monthCardsHtml}</div>
+      </div>
+
+      <div style="padding: 12px 14px; border-radius: 14px; background: var(--bg-subtle); border: 1px solid var(--border-color);">
+        <div style="font-size: 12.5px; font-weight: 800;">➕ ഇതുവരെ ചേർത്ത പുതിയ ടാസ്കുകൾ (${stats.addedItems.length})</div>
+        ${renderCalendarTitleBadges(stats.addedItems.map((x) => `${x.title} (${x.date})`), 'ഇതുവരെ പുതുതായി ടാസ്കുകളൊന്നും ചേർത്തിട്ടില്ല.', 'rgba(83, 118, 248, 0.12)', 'var(--indigo)', '+')}
+      </div>
+
+      <div style="padding: 12px 14px; border-radius: 14px; background: var(--bg-subtle); border: 1px solid var(--border-color);">
+        <div style="font-size: 12.5px; font-weight: 800;">🏆 ഏറ്റവും കൂടുതൽ പൂർത്തിയാക്കിയവ</div>
+        ${renderCalendarTitleBadges(stats.topCompleted.slice(0, 12).map((x) => `${x.title} ×${x.count}`), 'ഇതുവരെ പൂർത്തിയാക്കിയ ടാസ്കുകളൊന്നുമില്ല.', 'rgba(18, 183, 106, 0.14)', '#0F9455', '✔️')}
+      </div>
+    </div>
+  `;
+}
+
+function renderCalendarAggregatedBody({ heading, subtitle, stats, pctCol, dayKeysForCards }) {
+  const daysHtml = dayKeysForCards.length === 0
+    ? `<div style="font-size: 12px; color: var(--text-muted); padding: 8px 0;">ഈ കാലയളവിൽ രേഖപ്പെടുത്തിയ ദിവസങ്ങളൊന്നുമില്ല.</div>`
+    : dayKeysForCards.map((dKey) => {
+        const rec = getDateRecordOrLive(dKey);
+        const dPct = rec && rec.total > 0 ? rec.pct : 0;
+        const dCol = getCalendarPctColor(dPct);
+        const addedLen = rec && rec.addedTitles ? rec.addedTitles.length : 0;
+        return `
+          <div onclick="selectCalendarDayAndOpen('${dKey}')" style="padding: 10px 12px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;">
+            <div>
+              <div style="font-size: 12.5px; font-weight: 800;">${formatHistoryDateLabel(dKey)} <span class="mono" style="font-size: 10.5px; color: var(--text-muted);">(${dKey})</span></div>
+              <div class="mono" style="font-size: 11px; color: var(--text-muted);">
+                ${rec ? `✔️ ${rec.completed}/${rec.total} • ദിക്റ്: ${rec.dhikrTotal || 0}${addedLen > 0 ? ` • +${addedLen} ചേർത്തത്` : ''}` : 'രേഖകളില്ല'}
+              </div>
+            </div>
+            <span class="action-pill mono" style="background: ${rec ? dCol : 'var(--text-muted)'}; font-size: 11px;">${rec ? `${dPct}%` : '—'}</span>
+          </div>
+        `;
+      }).join('');
+
+  return `
+    <div class="flex-between" style="flex-wrap: wrap; gap: 10px; margin-bottom: 14px;">
+      <div>
+        <h3 style="font-size: 16px; font-weight: 800;">${heading}</h3>
+        <div style="font-size: 11.5px; color: var(--text-muted);">${subtitle}</div>
+      </div>
+      <button type="button" class="action-pill" style="background: #12B76A; font-size: 11px;" onclick="shareCalendarReportWhatsapp()">💬 WhatsApp Share</button>
+    </div>
+
+    ${buildCalendarKpiGrid([
+      { label: 'ശരാശരി ശതമാനം %', value: `${stats.avgPct}%`, sub: `${stats.activeTaskDays} സജീവ ദിവസം`, color: pctCol },
+      { label: 'പൂർത്തിയായ ടാസ്കുകൾ', value: `${stats.totalCompleted}/${stats.totalTasks}`, sub: `ആകെ സ്കോർ: ${stats.weightedPct}%`, color: 'var(--blue)' },
+      { label: 'ചേർത്ത പുതിയ ടാസ്കുകൾ', value: `${stats.addedItems.length}`, sub: 'ഈ കാലയളവിൽ ആഡ് ചെയ്തവ', color: 'var(--indigo)' },
+      { label: 'ദിക്റ് & വായന', value: `${stats.totalDhikr} / ${stats.totalReadingMins}m`, sub: 'തസ്ബീഹ് / മിനിറ്റ്', color: 'var(--violet)' }
+    ])}
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="padding: 12px 14px; border-radius: 14px; background: var(--bg-subtle); border: 1px solid var(--border-color);">
+        <div style="font-size: 12.5px; font-weight: 800;">➕ ഈ കാലയളവിൽ ചേർത്ത ടാസ്കുകൾ (${stats.addedItems.length})</div>
+        ${renderCalendarTitleBadges(stats.addedItems.map((x) => `${x.title} (${x.date})`), 'ഈ കാലയളവിൽ പുതുതായി ടാസ്കുകളൊന്നും ചേർത്തിട്ടില്ല.', 'rgba(83, 118, 248, 0.12)', 'var(--indigo)', '+')}
+      </div>
+
+      <div style="padding: 12px 14px; border-radius: 14px; background: var(--bg-subtle); border: 1px solid var(--border-color);">
+        <div style="font-size: 12.5px; font-weight: 800;">✔️ കൂടുതലായി പൂർത്തിയാക്കിയ ടാസ്കുകൾ</div>
+        ${renderCalendarTitleBadges(stats.topCompleted.slice(0, 10).map((x) => `${x.title} ×${x.count}`), 'പൂർത്തിയാക്കിയ ടാസ്കുകളൊന്നുമില്ല.', 'rgba(18, 183, 106, 0.14)', '#0F9455', '✔️')}
+      </div>
+
+      <div style="padding: 12px 14px; border-radius: 14px; background: var(--bg-subtle); border: 1px solid var(--border-color);">
+        <div style="font-size: 12.5px; font-weight: 800; margin-bottom: 8px;">📅 ദിവസേനയുള്ള വിശദാംശങ്ങൾ (ദിവസത്തിൽ ക്ലിക്ക് ചെയ്യാം)</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">${daysHtml}</div>
+      </div>
+    </div>
+  `;
 }
 
 let reportCompPeriod = 'daily';
