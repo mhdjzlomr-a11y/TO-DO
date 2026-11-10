@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="ml">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ONE DAY - Daily Routine &amp; Task Tracker</title>
+  
+  <!-- SEO & Social Meta -->
+  <meta name="description" content="ONE DAY: Daily spiritual routines, 100x Dhikr counters, reading options, time schedules, and automated alerts.">
+  <meta name="theme-color" content="#FF4B8B">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="ONE DAY">
+
+  <!-- PWA Manifest & Favicon -->
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/png" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+
+  <!-- Official Fonts: Inter & Noto Sans Malayalam (Non-blocking load) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+Malayalam:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+Malayalam:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+
+  <!-- Main Stylesheet -->
+  <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+  <!-- App Root Shell -->
+  <div class="app-shell" id="appRoot">
+
+    <!-- DESKTOP SIDEBAR -->
+    <aside class="sidebar">
+      <div>
+        <div class="brand-banner" onclick="switchNav('dashboard')">
+          <div class="brand-icon">1</div>
+          <div class="brand-title">ONE DAY<span class="brand-dot">.</span></div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <button class="nav-btn active" data-nav="dashboard" onclick="switchNav('dashboard')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+            <span data-i18n="dashboard">ഡാഷ്‌ബോർഡ്</span>
+          </button>
+
+          <button class="nav-btn" data-nav="projects" onclick="switchNav('projects')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 8 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+            <span data-i18n="projects">പ്രൊജക്ടുകൾ</span>
+          </button>
+
+          <button class="nav-btn" data-nav="tasks" onclick="switchNav('tasks')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span data-i18n="myTasks">എന്റെ ടാസ്കുകൾ</span>
+          </button>
+
+          <button class="nav-btn" data-nav="calendar" onclick="switchNav('calendar')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+            <span data-i18n="calendar">കലണ്ടർ</span>
+          </button>
+
+          <button class="nav-btn" data-nav="report" onclick="switchNav('report')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+            <span data-i18n="report">റിപ്പോർട്ട്</span>
+          </button>
+
+          <button class="nav-btn" onclick="openPhoneModal()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            <span data-i18n="quickWhatsApp">WhatsApp റിപ്പോർട്ടുകൾ</span>
+          </button>
+
+          <button class="nav-btn nav-btn-reset" onclick="openResetModal()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            <span data-i18n="resetOptions">മൊത്തം റീസെറ്റ്</span>
+          </button>
+        </nav>
+      </div>
+
+      <!-- Lifetime Free Badge Card -->
+      <div class="pro-card-sidebar" onclick="openFreeProModal()">
+        <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.85;">oneday ProFREE</div>
+        <div style="font-size: 13px; font-weight: 800; margin-top: 2px;">100% സൗജന്യ വേർഷൻ</div>
+        <div style="font-size: 11px; opacity: 0.85; margin-top: 4px;">ലൈഫ് ടൈം സൗജന്യം • പരസ്യങ്ങളില്ല</div>
+      </div>
+    </aside>
+
+    <!-- MAIN AREA -->
+    <main class="main-area">
+
+      <!-- TOP HEADER -->
+      <header class="top-header">
+        <!-- Mobile Brand & Drawer Button -->
+        <div class="mobile-brand-wrap">
+          <button class="icon-btn-circle" onclick="toggleMobileDrawer()" title="Menu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+          </button>
+          <div class="brand-title" style="font-size: 18px; color: var(--pink);">ONE DAY<span class="brand-dot" style="color: var(--indigo);">.</span></div>
+        </div>
+
+        <!-- Desktop Breadcrumb -->
+        <div class="header-breadcrumb">
+          <span>ONE DAY</span>
+          <span>/</span>
+          <span style="color: var(--text-main);" id="currentNavTitle">dashboard</span>
+        </div>
+
+        <!-- Header Actions -->
+        <div class="header-actions">
+          <!-- Language Selector -->
+          <button class="pill-btn" onclick="toggleLanguageMenu()" id="langBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+            <span id="currentLangText">മലയാളം</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+
+          <!-- Theme Toggle -->
+          <button class="icon-btn-circle" onclick="toggleTheme()" id="themeBtn" title="Toggle Theme">
+            <svg id="themeIconSun" class="hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+            <svg id="themeIconMoon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+          </button>
+
+          <!-- Reset Day Button -->
+          <button class="pill-btn" onclick="openResetModal()" title="റീസെറ്റ് ഓപ്ഷനുകൾ">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            <span data-i18n="reset" class="hide-xs">റീസെറ്റ്</span>
+          </button>
+
+          <!-- Phone & WhatsApp Modal -->
+          <button class="icon-btn-circle" onclick="openPhoneModal()" title="WhatsApp Alerts">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          </button>
+
+          <!-- Avatar -->
+          <div class="avatar-circle" onclick="openFreeProModal()">
+            1
+            <span class="online-dot"></span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Language Dropdown Popup Menu -->
+      <div id="langDropdown" class="hidden" style="position: absolute; top: 60px; right: 28px; z-index: 60; background: var(--bg-card); border-radius: 16px; border: 1px solid var(--border-color); box-shadow: var(--shadow-md); padding: 6px; min-width: 140px;">
+        <button class="nav-btn" onclick="setLanguage('ml')">മലയാളം</button>
+        <button class="nav-btn" onclick="setLanguage('en')">English</button>
+        <button class="nav-btn" onclick="setLanguage('ar')">العربية</button>
+      </div>
+
+      <!-- Mobile Slide Down Navigation Drawer -->
+      <nav class="mobile-drawer" id="mobileDrawer">
+        <button class="nav-btn active" data-nav="dashboard" onclick="switchNav('dashboard'); closeMobileDrawer();">
+          <span data-i18n="dashboard">ഡാഷ്‌ബോർഡ്</span>
+        </button>
+        <button class="nav-btn" data-nav="projects" onclick="switchNav('projects'); closeMobileDrawer();">
+          <span data-i18n="projects">പ്രൊജക്ടുകൾ</span>
+        </button>
+        <button class="nav-btn" data-nav="tasks" onclick="switchNav('tasks'); closeMobileDrawer();">
+          <span data-i18n="myTasks">എന്റെ ടാസ്കുകൾ</span>
+        </button>
+        <button class="nav-btn" data-nav="calendar" onclick="switchNav('calendar'); closeMobileDrawer();">
+          <span data-i18n="calendar">കലണ്ടർ</span>
+        </button>
+        <button class="nav-btn" data-nav="report" onclick="switchNav('report'); closeMobileDrawer();">
+          <span data-i18n="report">റിപ്പോർട്ട്</span>
+        </button>
+        <button class="nav-btn" onclick="openPhoneModal(); closeMobileDrawer();">
+          <span data-i18n="quickWhatsApp">WhatsApp റിപ്പോർട്ടുകൾ</span>
+        </button>
+        <button class="nav-btn nav-btn-reset" onclick="openResetModal(); closeMobileDrawer();">
+          <span data-i18n="resetOptions">മൊത്തം റീസെറ്റ്</span>
+        </button>
+      </nav>
+
+      <!-- PWA INSTALL BANNER (Appears if installable or user clicks install) -->
+      <div id="pwaBanner" class="hidden" style="margin: 12px 16px 0; padding: 12px 16px; border-radius: 18px; background: linear-gradient(135deg, #2B2965, #5376F8); color: #FFFFFF; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+        <div style="min-width: 0;">
+          <div style="font-weight: 800; font-size: 13px;">Install Daily Tasks App</div>
+          <div style="font-size: 11px; opacity: 0.85;">Add to your phone Home Screen for instant offline access</div>
+        </div>
+        <div style="display: flex; gap: 6px; flex-shrink: 0;">
+          <button id="pwaInstallBtn" style="background: #FFFFFF; color: #2B2965; font-size: 11px; font-weight: 800; padding: 6px 12px; border-radius: 10px;">Install</button>
+          <button onclick="dismissPwaBanner()" style="color: #FFFFFF; opacity: 0.7; padding: 6px 8px;">✕</button>
+        </div>
+      </div>
+
+      <!-- MAIN CONTENT BODY (SWITCHABLE VIEWS) -->
+      <div class="content-body" id="mainContentBody">
+
+        <!-- ============================================== -->
+        <!-- VIEW 1: DASHBOARD VIEW (Default Lector Layout) -->
+        <!-- ============================================== -->
+        <section id="viewDashboard" class="space-y-6">
+
+          <!-- ROW 1: DUAL WAVE CHART (Left 2fr) + TRI-COLOR DONUT (Right 1fr) -->
+          <div class="grid-hero">
+            
+            <!-- HERO CARD: DUAL SPLINE WAVE AREA CHART -->
+            <div class="card">
+              <div class="flex-between" style="margin-bottom: 14px; flex-wrap: wrap;">
+                <div>
+                  <h2 style="font-size: 16px; font-weight: 800;" data-i18n="dashboardOverview">ഡാഷ്‌ബോർഡ് അവലോകനം</h2>
+                  <p style="font-size: 12px; color: var(--text-muted);" data-i18n="liveGraph">ദിനചര്യകളുടെ തത്സമയ ഗ്രാഫ്</p>
+                </div>
+                
+                <!-- Period Switcher Tabs -->
+                <div class="period-tabs">
+                  <button class="period-tab active" data-wave="daily" onclick="setWavePeriod('daily')">daily</button>
+                  <button class="period-tab" data-wave="weekly" onclick="setWavePeriod('weekly')">weekly</button>
+                  <button class="period-tab" data-wave="monthly" onclick="setWavePeriod('monthly')">monthly</button>
+                  <button class="period-tab" data-wave="yearly" onclick="setWavePeriod('yearly')">yearly</button>
+                </div>
+              </div>
+
+              <!-- Main KPI Stats + SVG Dual Wave Graph -->
+              <div style="display: grid; grid-template-columns: 1fr; gap: 16px; align-items: center;" class="wave-grid-layout">
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <div>
+                    <span class="mono" id="heroPct" style="font-size: 32px; font-weight: 900; color: var(--text-main); line-height: 1;">0%</span>
+                    <p style="font-size: 11px; font-weight: 600; color: var(--text-muted);" data-i18n="todayCompletion">ഇന്നത്തെ പൂർത്തീകരണം</p>
+                  </div>
+                  <div>
+                    <span class="mono" id="heroCount" style="font-size: 20px; font-weight: 800; color: var(--text-main);">0 / 13</span>
+                    <p style="font-size: 11px; font-weight: 600; color: var(--text-muted);" data-i18n="routinesDone">ദിനചര്യകൾ പൂർത്തിയായി</p>
+                  </div>
+                  <button class="action-pill" style="background: var(--brand-grad); align-self: flex-start; padding: 7px 14px;" onclick="openReportView()">
+                    <span data-i18n="liveSummary">തത്സമയ സംഗ്രഹം</span>
+                  </button>
+                </div>
+
+                <!-- SVG Dual Spline Waves -->
+                <div style="width: 100%; overflow: hidden;">
+                  <svg id="heroWaveSvg" viewBox="0 0 540 145" style="width: 100%; height: auto; max-height: 150px; display: block; overflow: visible;">
+                    <defs>
+                      <linearGradient id="amberWaveGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.38"/>
+                        <stop offset="100%" stop-color="#F59E0B" stop-opacity="0.0"/>
+                      </linearGradient>
+                      <linearGradient id="purpleWaveGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#9333EA" stop-opacity="0.32"/>
+                        <stop offset="100%" stop-color="#EC4899" stop-opacity="0.0"/>
+                      </linearGradient>
+                    </defs>
+
+                    <!-- Horizontal Gridlines -->
+                    <line x1="25" y1="25" x2="515" y2="25" stroke="currentColor" opacity="0.08" stroke-dasharray="3 3"/>
+                    <line x1="25" y1="65" x2="515" y2="65" stroke="currentColor" opacity="0.08" stroke-dasharray="3 3"/>
+                    <line x1="25" y1="105" x2="515" y2="105" stroke="currentColor" opacity="0.08" stroke-dasharray="3 3"/>
+
+                    <!-- Amber Wave Path & Area -->
+                    <path id="amberAreaPath" fill="url(#amberWaveGrad)" d=""/>
+                    <path id="amberLinePath" fill="none" stroke="#F59E0B" stroke-width="2.6" stroke-linecap="round" d=""/>
+
+                    <!-- Purple Wave Path & Area -->
+                    <path id="purpleAreaPath" fill="url(#purpleWaveGrad)" d=""/>
+                    <path id="purpleLinePath" fill="none" stroke="#9333EA" stroke-width="2.6" stroke-linecap="round" d=""/>
+
+                    <!-- Dynamic Circles Group -->
+                    <g id="waveDotsGroup"></g>
+                  </svg>
+
+                  <!-- X-Axis Labels -->
+                  <div id="waveLabelsRow" class="flex-between" style="padding: 4px 10px 0; font-size: 10px; font-weight: 700; color: var(--text-muted);">
+                    <!-- Injected by JS -->
+                  </div>
+                </div>
+              </div>
+
+              <!-- 4 Icon Pills under graph -->
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-color);" class="hero-metric-pills">
+                <div class="flex-center" style="justify-content: flex-start; gap: 8px;">
+                  <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(235, 90, 142, 0.12); color: var(--pink);" class="flex-center">👑</div>
+                  <div>
+                    <div style="font-size: 10px; color: var(--text-muted);" data-i18n="spiritual">ആത്മീയവ</div>
+                    <div class="mono" id="heroSpiritualPill" style="font-size: 13px; font-weight: 900;">0 / 10</div>
+                  </div>
+                </div>
+
+                <div class="flex-center" style="justify-content: flex-start; gap: 8px;">
+                  <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(127, 68, 184, 0.12); color: var(--violet);" class="flex-center">📿</div>
+                  <div>
+                    <div style="font-size: 10px; color: var(--text-muted);" data-i18n="dhikrTarget">ദിക്റുകൾ</div>
+                    <div class="mono" id="heroDhikrPill" style="font-size: 13px; font-weight: 900;">300 Target</div>
+                  </div>
+                </div>
+
+                <div class="flex-center" style="justify-content: flex-start; gap: 8px;">
+                  <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(83, 118, 248, 0.12); color: var(--blue);" class="flex-center">📖</div>
+                  <div>
+                    <div style="font-size: 10px; color: var(--text-muted);" data-i18n="reading">വായന</div>
+                    <div class="mono" id="heroReadingPill" style="font-size: 13px; font-weight: 900;">25 Mins</div>
+                  </div>
+                </div>
+
+                <div class="flex-center" style="justify-content: flex-start; gap: 8px;">
+                  <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(247, 144, 9, 0.12); color: var(--amber);" class="flex-center">🔥</div>
+                  <div>
+                    <div style="font-size: 10px; color: var(--text-muted);" data-i18n="streak">തുടർച്ച</div>
+                    <div class="mono" id="heroStreakPill" style="font-size: 13px; font-weight: 900;">18 Days</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TRI-COLOR DONUT RATIO CARD (Pink 55%, Purple 33%, Yellow 12%) -->
+            <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+              <div class="flex-between">
+                <h3 style="font-size: 14px; font-weight: 800;" data-i18n="routineRatio">ദിനചര്യ വിതരണം</h3>
+                <span class="action-pill" style="background: rgba(127, 68, 184, 0.12); color: var(--violet); font-size: 10px;" id="donutPctBadge">0% Done</span>
+              </div>
+
+              <!-- SVG Donut Ring -->
+              <div style="position: relative; width: 170px; height: 170px; margin: 12px auto;" class="flex-center">
+                <svg viewBox="0 0 100 100" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                  <!-- Segment 1: Pink (55%) -->
+                  <circle cx="50" cy="50" r="38" fill="transparent" stroke="#EC4899" stroke-width="11" stroke-dasharray="131.3 238.7" stroke-dashoffset="0" stroke-linecap="round"/>
+                  <!-- Segment 2: Purple (33%) -->
+                  <circle cx="50" cy="50" r="38" fill="transparent" stroke="#8B5CF6" stroke-width="11" stroke-dasharray="78.8 238.7" stroke-dashoffset="-131.3" stroke-linecap="round"/>
+                  <!-- Segment 3: Yellow (12%) -->
+                  <circle cx="50" cy="50" r="38" fill="transparent" stroke="#F59E0B" stroke-width="11" stroke-dasharray="28.6 238.7" stroke-dashoffset="-210.1" stroke-linecap="round"/>
+                </svg>
+
+                <div style="position: absolute; text-align: center;">
+                  <span class="mono" id="donutCenterPct" style="font-size: 26px; font-weight: 900; color: var(--text-main); display: block; line-height: 1;">0%</span>
+                  <span style="font-size: 10px; font-weight: 700; color: var(--text-muted);" data-i18n="active">സജീവം</span>
+                </div>
+              </div>
+
+              <!-- Bottom 3 Segment Stats -->
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; padding-top: 10px; border-top: 1px solid var(--border-color);">
+                <div>
+                  <span class="mono" style="font-size: 14px; font-weight: 900; color: #EC4899; display: block;">55%</span>
+                  <span style="font-size: 10px; font-weight: 600; color: var(--text-muted);" data-i18n="spiritual">ആത്മീയവ</span>
+                </div>
+                <div>
+                  <span class="mono" style="font-size: 14px; font-weight: 900; color: #8B5CF6; display: block;">33%</span>
+                  <span style="font-size: 10px; font-weight: 600; color: var(--text-muted);" data-i18n="dhikrTarget">ദിക്റുകൾ</span>
+                </div>
+                <div>
+                  <span class="mono" style="font-size: 14px; font-weight: 900; color: #F59E0B; display: block;">12%</span>
+                  <span style="font-size: 10px; font-weight: 600; color: var(--text-muted);" data-i18n="learning">പഠനം</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ROW 2: 4 ROUNDED GRADIENT CARDS (Pink, Purple, Cyan, Amber) -->
+          <div class="grid-4-cards">
+            <!-- 1. Pink Gradient: Spiritual -->
+            <div class="grad-card grad-pink" onclick="filterByCat('spiritual')">
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; align-items: flex-end; gap: 3px; height: 26px; opacity: 0.85;">
+                  <span style="width: 4px; height: 14px; background: #FFF; border-radius: 99px;"></span>
+                  <span style="width: 4px; height: 22px; background: #FFF; border-radius: 99px;"></span>
+                  <span style="width: 4px; height: 10px; background: #FFF; border-radius: 99px;"></span>
+                  <span style="width: 4px; height: 26px; background: #FFF; border-radius: 99px;"></span>
+                  <span style="width: 4px; height: 18px; background: #FFF; border-radius: 99px;"></span>
+                </div>
+                <span style="font-size: 11px; font-weight: 700; opacity: 0.9;" data-i18n="spiritual">ആത്മീയവ</span>
+              </div>
+              <div style="text-align: right;">
+                <span class="mono" id="gradCardSpiritualCount" style="font-size: 24px; font-weight: 900; display: block; line-height: 1;">0 / 10</span>
+                <span id="gradCardDateStr" style="font-size: 10px; opacity: 0.85; font-weight: 600;">Today</span>
+              </div>
+            </div>
+
+            <!-- 2. Purple Gradient: Dhikr Counter (Click opens Dhikr Modal) -->
+            <div class="grad-card grad-purple" onclick="openAnyCounterTask()">
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="opacity: 0.85;">
+                  <svg viewBox="0 0 40 20" style="width: 40px; height: 26px; fill: none; stroke: #FFFFFF; stroke-width: 2.5;">
+                    <path d="M 0 15 Q 10 0, 20 12 T 40 5" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <span style="font-size: 11px; font-weight: 700; opacity: 0.9;" data-i18n="dhikrCounter">ദിക്റ് കൗണ്ടർ</span>
+              </div>
+              <div style="text-align: right;">
+                <span class="mono" style="font-size: 24px; font-weight: 900; display: block; line-height: 1;">300</span>
+                <span style="font-size: 10px; opacity: 0.85; font-weight: 600;">100x ഇസ്തിഗ്ഫാർ, തസ്ബീഹ്</span>
+              </div>
+            </div>
+
+            <!-- 3. Cyan Gradient: Reading Focus Hub -->
+            <div class="grad-card grad-blue" onclick="openReadingModal()">
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="opacity: 0.85;">
+                  <svg viewBox="0 0 40 20" style="width: 40px; height: 26px; fill: none; stroke: #FFFFFF; stroke-width: 2.5;">
+                    <path d="M 0 10 Q 10 18, 20 5 T 40 12" stroke-linecap="round" stroke-dasharray="2 3"/>
+                  </svg>
+                </div>
+                <span style="font-size: 11px; font-weight: 700; opacity: 0.9;" data-i18n="readingHub">വായനാ കേന്ദ്രം</span>
+              </div>
+              <div style="text-align: right;">
+                <span class="mono" style="font-size: 24px; font-weight: 900; display: block; line-height: 1;">25 m</span>
+                <span style="font-size: 10px; opacity: 0.85; font-weight: 600;">തഫ്സീർ &amp; പുസ്തകം</span>
+              </div>
+            </div>
+
+            <!-- 4. Amber Gradient: Daily Streak -->
+            <div class="grad-card grad-amber" onclick="openResetModal()">
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; align-items: flex-end; gap: 3px; height: 26px; opacity: 0.85;">
+                  <span style="width: 4px; height: 20px; background: #FFF; border-radius: 99px;"></span>
+                  <span style="width: 4px; height: 12px; background: #FFF; border-radius: 99px;"></span>
+                  <span style="width: 4px; height: 26px; background: #FFF; border-radius: 99px;"></span>
+                  <span style="width: 4px; height: 18px; background: #FFF; border-radius: 99px;"></span>
+                </div>
+                <span style="font-size: 11px; font-weight: 700; opacity: 0.9;" data-i18n="streak">തുടർച്ച (Streak)</span>
+              </div>
+              <div style="text-align: right;">
+                <span class="mono flex-center" style="font-size: 24px; font-weight: 900; line-height: 1; justify-content: flex-end; gap: 4px;">
+                  <span>🔥</span><span id="gradCardStreakCount">18</span>
+                </span>
+                <span style="font-size: 10px; opacity: 0.85; font-weight: 600;" data-i18n="daysStreak">ദിവസങ്ങൾ</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ROW 3: LOWER SECTION (Left 1fr: Timeline & Habit Report | Right 2fr: Routines Table) -->
+          <div class="grid-lower">
+
+            <!-- LEFT CARD: TIMELINE & 4 SQUIRCLE TILES WITH DAY / WEEK / MONTH SWITCHER -->
+            <div class="card" style="display: flex; flex-direction: column; gap: 16px;">
+              
+              <!-- 1. Timeline Header -->
+              <div class="flex-between" style="padding-bottom: 6px; border-bottom: 1px solid var(--border-color);">
+                <h3 style="font-size: 13.5px; font-weight: 800;" data-i18n="timeline">സമയക്രമ ടൈംലൈൻ (Timeline)</h3>
+                <span class="action-pill" style="background: rgba(127, 68, 184, 0.12); color: var(--violet); font-size: 10px;">Live Schedule</span>
+              </div>
+
+              <!-- Live Timeline List (NO STRIKETHROUGH!) -->
+              <div class="timeline-list" id="timelineTasksList">
+                <!-- Injected by JS -->
+              </div>
+
+              <!-- 2. HABIT REPORT CARD WITH DAY / WEEK / MONTH SWITCHER -->
+              <div style="padding-top: 12px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px;">
+                <div class="flex-between">
+                  <h4 style="font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 5px;">
+                    <span style="color: var(--pink);">🎖️</span>
+                    <span data-i18n="habitReport">ശീലങ്ങളുടെ റിപ്പോർട്ട്</span>
+                  </h4>
+
+                  <!-- Day / Week / Month Switcher Pills -->
+                  <div class="period-tabs">
+                    <button class="period-tab active" data-habit="daily" onclick="setHabitPeriod('daily')">ദിവസം</button>
+                    <button class="period-tab" data-habit="weekly" onclick="setHabitPeriod('weekly')">ആഴ്ച</button>
+                    <button class="period-tab" data-habit="monthly" onclick="setHabitPeriod('monthly')">മാസം</button>
+                  </div>
+                </div>
+
+                <!-- 4 Squircle Habit Tiles (Exact 4 colors: #2B2965, #5376F8, #7F44B8, #EB5A8E) -->
+                <div class="squircle-grid">
+                  <!-- Squircle 1: Deep Indigo (#2B2965) -->
+                  <div class="squircle-tile tile-indigo" onclick="filterByCat('spiritual')">
+                    <div style="font-size: 16px;">👑</div>
+                    <div>
+                      <span class="mono" id="squircle1Count" style="font-size: 16px; font-weight: 900; line-height: 1; display: block;">0 / 10</span>
+                      <span style="font-size: 9.5px; opacity: 0.85; font-weight: 600;" data-i18n="spiritual">ആത്മീയവ</span>
+                    </div>
+                  </div>
+
+                  <!-- Squircle 2: Royal Blue (#5376F8) -->
+                  <div class="squircle-tile tile-blue" onclick="openAnyCounterTask()">
+                    <div style="font-size: 16px;">📿</div>
+                    <div>
+                      <span class="mono" id="squircle2Count" style="font-size: 16px; font-weight: 900; line-height: 1; display: block;">300</span>
+                      <span style="font-size: 9.5px; opacity: 0.85; font-weight: 600;" data-i18n="dhikrTarget">ദിക്റ് എണ്ണം</span>
+                    </div>
+                  </div>
+
+                  <!-- Squircle 3: Violet / Purple (#7F44B8) -->
+                  <div class="squircle-tile tile-violet" onclick="openReadingModal()">
+                    <div style="font-size: 16px;">📖</div>
+                    <div>
+                      <span class="mono" id="squircle3Count" style="font-size: 16px; font-weight: 900; line-height: 1; display: block;">25 m</span>
+                      <span style="font-size: 9.5px; opacity: 0.85; font-weight: 600;" data-i18n="reading">വായന</span>
+                    </div>
+                  </div>
+
+                  <!-- Squircle 4: Rose Pink (#EB5A8E) -->
+                  <div class="squircle-tile tile-pink" onclick="openReportView()">
+                    <div style="font-size: 16px;">✨</div>
+                    <div>
+                      <span class="mono" id="squircle4Count" style="font-size: 16px; font-weight: 900; line-height: 1; display: block;">18 ദിവസം</span>
+                      <span id="squircle4Label" style="font-size: 9.5px; opacity: 0.85; font-weight: 600;" data-i18n="streak">തുടർച്ച</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3. Next Upcoming Pending Routine Pill -->
+              <div id="nextPendingPillBox" class="p-3 rounded-2xl" style="padding: 12px; border-radius: 16px; background: rgba(83, 118, 248, 0.08); border: 1px solid rgba(83, 118, 248, 0.2); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                  <span style="width: 28px; height: 28px; border-radius: 10px; background: var(--blue); color: #FFF;" class="flex-center">🔔</span>
+                  <div style="min-width: 0;">
+                    <div style="font-size: 10px; font-weight: 800; color: var(--blue); text-transform: uppercase;" data-i18n="nextRoutine">അടുത്ത ദിനചര്യ</div>
+                    <div id="nextPendingTitle" style="font-size: 12px; font-weight: 800; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">AURADU SHADULIYY</div>
+                  </div>
+                </div>
+                <span class="mono" id="nextPendingTime" style="padding: 4px 8px; border-radius: 10px; background: var(--bg-card); font-size: 11px; font-weight: 900; color: var(--blue); box-shadow: var(--shadow-sm); flex-shrink: 0;">05:45 AM</span>
+              </div>
+
+              <!-- 4. Quran Surahs Tilawat Quick Check -->
+              <div style="padding: 14px; border-radius: 18px; background: var(--bg-subtle); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
+                <div class="flex-between">
+                  <span style="font-size: 11.5px; font-weight: 800; color: var(--violet); display: flex; align-items: center; gap: 5px;">
+                    📖 <span data-i18n="quranRecitation">ഖുർആൻ സൂറത്തുകൾ ഓത്ത്</span>
+                  </span>
+                  <span class="mono" style="font-size: 10px; font-weight: 800; color: var(--violet);">3 Surahs</span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                  <div class="flex-between" style="padding: 6px 10px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-color); cursor: pointer;" onclick="toggleTask('yaseen')">
+                    <div class="flex-center" style="gap: 8px;">
+                      <span class="check-circle" id="quranCheck_yaseen" style="width: 18px; height: 18px;"></span>
+                      <span style="font-size: 11.5px; font-weight: 700;">സൂറത്തു യാസീൻ</span>
+                    </div>
+                    <span class="mono" style="font-size: 9.5px; color: var(--text-muted);">06:15 AM</span>
+                  </div>
+
+                  <div class="flex-between" style="padding: 6px 10px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-color); cursor: pointer;" onclick="toggleTask('mulk')">
+                    <div class="flex-center" style="gap: 8px;">
+                      <span class="check-circle" id="quranCheck_mulk" style="width: 18px; height: 18px;"></span>
+                      <span style="font-size: 11.5px; font-weight: 700;">സൂറത്തുൽ മുൽക്</span>
+                    </div>
+                    <span class="mono" style="font-size: 9.5px; color: var(--text-muted);">09:30 PM</span>
+                  </div>
+
+                  <div class="flex-between" style="padding: 6px 10px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-color); cursor: pointer;" onclick="toggleTask('fathiha')">
+                    <div class="flex-center" style="gap: 8px;">
+                      <span class="check-circle" id="quranCheck_fathiha" style="width: 18px; height: 18px;"></span>
+                      <span style="font-size: 11.5px; font-weight: 700;">സൂറത്തുൽ ഫാത്തിഹ</span>
+                    </div>
+                    <span class="mono" style="font-size: 9.5px; color: var(--text-muted);">10:00 PM</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 5. Prophetic Hadith Card -->
+              <div style="padding: 14px; border-radius: 18px; background: linear-gradient(135deg, rgba(235, 90, 142, 0.08), rgba(127, 68, 184, 0.08)); border: 1px solid rgba(235, 90, 142, 0.2); display: flex; flex-direction: column; gap: 6px;">
+                <div style="font-size: 10px; font-weight: 900; color: var(--pink); text-transform: uppercase; letter-spacing: 0.05em;" data-i18n="hadithHeader">
+                  💬 ഇന്നത്തെ നബിവചനം (ഹദീസ്)
+                </div>
+                <p style="font-size: 11.5px; font-weight: 600; line-height: 1.4; font-style: italic; color: var(--text-main);" data-i18n="hadithText">
+                  «അല്ലാഹുവിങ്കൽ ഏറ്റവും പ്രിയപ്പെട്ട പുണ്യകർമ്മം, അല്പമാണെങ്കിലും നിത്യേന തുടരുന്നതാണ്.»
+                </p>
+                <div style="font-size: 9.5px; color: var(--text-muted); text-align: right; font-weight: 600;">
+                  — സ്വഹീഹുൽ ബുഖാരി (Sahih al-Bukhari)
+                </div>
+              </div>
+
+            </div>
+
+            <!-- RIGHT CARD: DAILY ROUTINES STATUS TABLE (WITH #2B2965 INDIGO HEADER) -->
+            <div class="card" style="display: flex; flex-direction: column; gap: 14px;">
+              
+              <!-- Table Header Controls -->
+              <div class="flex-between" style="flex-wrap: wrap; gap: 10px;">
+                <div>
+                  <h3 style="font-size: 16px; font-weight: 800;" data-i18n="tableTitle">ദിനചര്യകളുടെ തത്സമയ സ്റ്റാറ്റസ്</h3>
+                  <p style="font-size: 12px; color: var(--text-muted);" data-i18n="tableSubtitle">ഇന്നത്തെ 13 പ്രധാന ദിനചര്യകളുടെ പട്ടിക</p>
+                </div>
+
+                <div class="flex-center" style="gap: 8px;">
+                  <!-- Filter Pills: All / Pending / Completed -->
+                  <div class="period-tabs">
+                    <button class="period-tab active" data-filter="all" onclick="setTableFilter('all')">എല്ലാം</button>
+                    <button class="period-tab" data-filter="pending" onclick="setTableFilter('pending')">ബാക്കി</button>
+                    <button class="period-tab" data-filter="completed" onclick="setTableFilter('completed')">തീർന്നവ</button>
+                  </div>
+
+                  <!-- Add Task Button -->
+                  <button class="action-pill" style="background: var(--pink);" onclick="openAddModal()">
+                    <span>+ Add</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Search Bar -->
+              <div style="position: relative;">
+                <input type="text" id="tableSearchInput" oninput="onSearchTasks(this.value)" placeholder="Search routine (ഇസ്തിഗ്ഫാർ, യാസീൻ, reading...)" class="form-input" style="padding-left: 36px;">
+                <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.4;">🔍</span>
+              </div>
+
+              <!-- Desktop Table Header (#2B2965 Deep Indigo) -->
+              <div class="routine-table-header">
+                <div>ROUTINE / TASK (ദിനചര്യ)</div>
+                <div>CATEGORY</div>
+                <div>TIME</div>
+                <div>PROGRESS</div>
+                <div style="text-align: right;">STATUS / ACTION</div>
+              </div>
+
+              <!-- Routines Rows Container -->
+              <div class="routine-rows" id="routineRowsContainer">
+                <!-- Injected by JS -->
+              </div>
+
+              <!-- Table Footer Pagination -->
+              <div class="flex-between" style="padding-top: 10px; border-top: 1px solid var(--border-color); font-size: 11.5px; color: var(--text-muted);">
+                <span id="tableEntriesCount">Showing 1 to 13 of 13 entries</span>
+                <span style="width: 26px; height: 26px; border-radius: 8px; background: var(--pink); color: #FFF; font-weight: 800;" class="flex-center">1</span>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- ROW 4: WHATSAPP REPORTS DISPATCH BAR -->
+          <div class="card" style="background: linear-gradient(135deg, rgba(83, 118, 248, 0.06), rgba(235, 90, 142, 0.06)); border: 1px solid rgba(83, 118, 248, 0.2);">
+            <div class="flex-between" style="flex-wrap: wrap; gap: 14px;">
+              <div>
+                <h4 style="font-size: 14px; font-weight: 800; display: flex; align-items: center; gap: 6px;">
+                  <span>💬</span>
+                  <span data-i18n="quickWhatsApp">വാട്സാപ്പ് തത്സമയ റിപ്പോർട്ടുകൾ (WhatsApp Reports)</span>
+                </h4>
+                <p style="font-size: 12px; color: var(--text-muted);">
+                  പൂർത്തിയായവയും ഇനിയും ബാക്കിയുള്ളവയും ഒറ്റ ക്ലിക്കിൽ വാട്സാപ്പിൽ അയക്കാം
+                </p>
+              </div>
+
+              <div class="flex-center" style="flex-wrap: wrap; gap: 8px;">
+                <button class="action-pill" style="background: #12B76A; font-size: 12px; padding: 10px 16px;" onclick="sendWhatsAppCompleted()">
+                  <span>✔️ പൂർത്തിയായവ അയക്കുക</span>
+                </button>
+                <button class="action-pill" style="background: #F79009; font-size: 12px; padding: 10px 16px;" onclick="sendWhatsAppPending()">
+                  <span>⏳ ബാക്കിയുള്ളവ അയക്കുക</span>
+                </button>
+                <button class="action-pill" style="background: var(--bg-subtle); color: var(--text-main); border: 1px solid var(--border-color); font-size: 12px; padding: 10px 14px;" onclick="openPhoneModal()">
+                  <span>⚙️ നമ്പർ മാറ്റുക</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ============================================== -->
+        <!-- VIEW 2: PROJECTS VIEW -->
+        <!-- ============================================== -->
+        <section id="viewProjects" class="space-y-6 hidden">
+          <div class="card">
+            <h2 style="font-size: 18px; font-weight: 800; margin-bottom: 6px;">പ്രൊജക്ടുകൾ (Active Projects)</h2>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">ദീർഘകാല ലക്ഷ്യങ്ങളും പ്രൊജക്റ്റുകളും</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;" id="projectsListContainer">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- VIEW 3: MY TASKS VIEW -->
+        <!-- ============================================== -->
+        <section id="viewTasks" class="space-y-6 hidden">
+          <div class="card">
+            <div class="flex-between" style="margin-bottom: 16px;">
+              <div>
+                <h2 style="font-size: 18px; font-weight: 800;">എന്റെ ടാസ്കുകൾ (My Tasks)</h2>
+                <p style="font-size: 12px; color: var(--text-muted);">മുഴുവൻ ദിനചര്യകളും ഫിൽട്ടർ ചെയ്തു കാണുക</p>
+              </div>
+              <button class="action-pill" style="background: var(--pink);" onclick="openAddModal()">+ പുതിയ ടാസ്ക്</button>
+            </div>
+            <div id="fullTasksContainer" class="routine-rows">
+              <!-- Injected by JS -->
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- VIEW 4: CALENDAR VIEW -->
+        <!-- ============================================== -->
+        <section id="viewCalendar" class="space-y-6 hidden">
+          <div class="card">
+            <h2 style="font-size: 18px; font-weight: 800; margin-bottom: 6px;">കലണ്ടർ (Monthly Calendar)</h2>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">ദിവസേനയുള്ള തുടർച്ചയും ചരിത്രവും</p>
+            <div id="calendarGridContainer" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; text-align: center;">
+              <!-- Calendar grid populated by JS -->
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- VIEW 5: COMPREHENSIVE REPORT VIEW -->
+        <!-- ============================================== -->
+        <section id="viewReport" class="space-y-6 hidden">
+          <div class="card">
+            <div class="flex-between" style="margin-bottom: 16px;">
+              <div>
+                <h2 style="font-size: 18px; font-weight: 800;">സമ്പൂർണ്ണ റിപ്പോർട്ട് (Performance Report)</h2>
+                <p style="font-size: 12px; color: var(--text-muted);">ഓരോ ദിവസത്തെയും ആഴ്ചയുടെയും മാസത്തിന്റെയും habit അവലോകനം</p>
+              </div>
+              <div class="period-tabs">
+                <button class="period-tab active" data-compr="daily" onclick="setCompReportPeriod('daily')">ദിവസം</button>
+                <button class="period-tab" data-compr="weekly" onclick="setCompReportPeriod('weekly')">ആഴ്ച</button>
+                <button class="period-tab" data-compr="monthly" onclick="setCompReportPeriod('monthly')">മാസം</button>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px;" id="reportKpiGrid">
+              <!-- KPI Cards injected by JS -->
+            </div>
+
+            <div style="padding: 16px; border-radius: 18px; background: var(--bg-subtle); border: 1px solid var(--border-color);">
+              <h4 style="font-size: 13px; font-weight: 800; margin-bottom: 10px;">വിശകലനം (Detailed Breakdown)</h4>
+              <div id="reportBreakdownList" style="display: flex; flex-direction: column; gap: 8px;">
+                <!-- Injected by JS -->
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- FIXED MOBILE BOTTOM NAVIGATION BAR -->
+  <nav class="mobile-bottom-nav">
+    <button class="bottom-tab active" data-nav="dashboard" onclick="switchNav('dashboard')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+      <span data-i18n="dashboard">ഹോം</span>
+    </button>
+
+    <button class="bottom-tab" data-nav="tasks" onclick="switchNav('tasks')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <span data-i18n="myTasks">ടാസ്കുകൾ</span>
+    </button>
+
+    <!-- Center Giant 📿 Dhikr Tap Button -->
+    <button class="bottom-center-btn" onclick="openAnyCounterTask()" title="Dhikr Counter">
+      <span style="font-size: 20px;">📿</span>
+    </button>
+
+    <button class="bottom-tab" data-nav="report" onclick="switchNav('report')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+      <span data-i18n="report">റിപ്പോർട്ട്</span>
+    </button>
+
+    <button class="bottom-tab" onclick="openResetModal()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      <span data-i18n="reset">റീസെറ്റ്</span>
+    </button>
+  </nav>
+
+  <!-- ============================================== -->
+  <!-- MODAL 1: 100x DHIKR COUNTER MODAL -->
+  <!-- ============================================== -->
+  <div class="modal-backdrop" id="dhikrModalBackdrop" onclick="closeModalOnBackdrop(event, 'dhikrModalBackdrop')">
+    <div class="modal-box" style="text-align: center;">
+      <!-- Top Bar -->
+      <div class="flex-between" style="margin-bottom: 12px;">
+        <button class="icon-btn-circle" onclick="toggleAudioSound()" id="dhikrSoundBtn" title="Sound">
+          🔊
+        </button>
+        <span class="action-pill" style="background: rgba(83, 118, 248, 0.15); color: var(--blue); font-size: 11px;">100x DHIKR COUNTER</span>
+        <button class="icon-btn-circle" onclick="closeDhikrModal()" title="Close">✕</button>
+      </div>
+
+      <!-- Title & Arabic -->
+      <h3 id="dhikrModalTitle" style="font-size: 20px; font-weight: 900; margin-bottom: 4px;">100 ISTHIGFAR</h3>
+      <p id="dhikrModalArabic" class="arabic-text" style="font-size: 24px; color: var(--blue); margin-bottom: 4px;">أَسْتَغْفِرُ اللّٰهَ</p>
+      <p id="dhikrModalSubtitle" style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">അസ്തഗ്ഫിറുല്ലാഹ് (100 തവണ)</p>
+
+      <!-- Giant Interactive Circular Tap Button -->
+      <div style="position: relative; width: 220px; height: 220px; margin: 0 auto;" class="flex-center">
+        <!-- SVG Progress Ring -->
+        <svg viewBox="0 0 100 100" style="position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg);">
+          <circle cx="50" cy="50" r="44" fill="transparent" stroke="var(--border-color)" stroke-width="6"/>
+          <circle id="dhikrSvgRing" cx="50" cy="50" r="44" fill="transparent" stroke="url(#dhikrRingGrad)" stroke-width="6" stroke-dasharray="276.46" stroke-dashoffset="276.46" stroke-linecap="round" style="transition: stroke-dashoffset 0.15s ease;"/>
+          <defs>
+            <linearGradient id="dhikrRingGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#FF4B8B"/>
+              <stop offset="100%" stop-color="#7B4EE4"/>
+            </linearGradient>
+          </defs>
+        </svg>
+
+        <!-- Tap Circle -->
+        <button id="dhikrGiantBtn" class="dhikr-tap-btn" onclick="incrementDhikr(1)">
+          <span class="mono" id="dhikrCountDisplay" style="font-size: 52px; font-weight: 900; line-height: 1;">0</span>
+          <span id="dhikrBtnLabel" style="font-size: 11px; font-weight: 700; opacity: 0.9; text-transform: uppercase; margin-top: 4px;">Tap to count</span>
+          <span class="mono" id="dhikrPctDisplay" style="font-size: 10px; opacity: 0.75;">(0%)</span>
+        </button>
+      </div>
+
+      <!-- Quick Fast Action Buttons -->
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 18px;">
+        <button class="pill-btn flex-center" style="padding: 10px;" onclick="incrementDhikr(5)">+5 Fast</button>
+        <button class="pill-btn flex-center" style="padding: 10px; color: #F43F5E;" onclick="resetDhikrCounter()">🔄 Reset</button>
+        <button class="pill-btn flex-center" style="padding: 10px; background: var(--pink); color: #FFF; border: none;" onclick="completeDhikrNow()">✔️ Done</button>
+      </div>
+
+      <!-- Celebration Tag -->
+      <div id="dhikrCelebrationTag" class="hidden" style="margin-top: 12px; padding: 8px 12px; border-radius: 12px; background: rgba(18, 183, 106, 0.12); color: #12B76A; font-size: 12px; font-weight: 800;">
+        ✨ മാശാ അല്ലാഹ്! ഇന്നത്തെ ലക്ഷ്യം പൂർത്തിയായി.
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL 2: READING OPTIONS HUB & FOCUS STOPWATCH -->
+  <!-- ============================================== -->
+  <div class="modal-backdrop" id="readingModalBackdrop" onclick="closeModalOnBackdrop(event, 'readingModalBackdrop')">
+    <div class="modal-box">
+      <!-- Top Bar -->
+      <div class="flex-between" style="margin-bottom: 12px;">
+        <div class="flex-center" style="gap: 8px;">
+          <span style="font-size: 22px;">📚</span>
+          <div>
+            <h3 style="font-size: 16px; font-weight: 900;">Daily Reading Options Hub</h3>
+            <p style="font-size: 11px; color: var(--text-muted);">വായനാ ലക്ഷ്യം, ടൈമർ &amp; പേജുകൾ</p>
+          </div>
+        </div>
+        <button class="icon-btn-circle" onclick="closeReadingModal()">✕</button>
+      </div>
+
+      <!-- Category Selection Pills -->
+      <label style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">
+        വായനാ വിഭാഗം തിരഞ്ഞെടുക്കുക
+      </label>
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 14px;" id="readingMaterialPills">
+        <button class="pill-btn active" data-mat="Book" onclick="selectReadingMat('Book')">📚 Books</button>
+        <button class="pill-btn" data-mat="Quran Tafsir" onclick="selectReadingMat('Quran Tafsir')">🕌 Quran Tafsir</button>
+        <button class="pill-btn" data-mat="Islamic Literature" onclick="selectReadingMat('Islamic Literature')">📖 Hadith / Deen</button>
+        <button class="pill-btn" data-mat="English Article" onclick="selectReadingMat('English Article')">📰 English Reading</button>
+      </div>
+
+      <!-- Book Title Input -->
+      <label style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 4px;">
+        പുസ്തകം / ലേഖനം പേര്
+      </label>
+      <input type="text" id="readingBookTitleInput" placeholder="ഉദാ: ഇൻ ദ ഏർലി അവേഴ്സ്, അറ്റോമിക് ഹാബിറ്റ്സ്..." class="form-input" style="margin-bottom: 14px;">
+
+      <!-- Focus Reading Stopwatch Card -->
+      <div style="padding: 14px; border-radius: 18px; background: var(--bg-subtle); border: 1px solid var(--border-color); margin-bottom: 14px;">
+        <div class="flex-between" style="margin-bottom: 6px;">
+          <span style="font-size: 11.5px; font-weight: 800; display: flex; align-items: center; gap: 4px;">
+            ⏱️ Focus Reading Stopwatch
+          </span>
+          <span style="font-size: 10.5px; font-weight: 700; color: var(--text-muted);" id="readingTargetMinutesLabel">Target: 25 min</span>
+        </div>
+
+        <div class="flex-between">
+          <span class="mono" id="readingStopwatchDisplay" style="font-size: 28px; font-weight: 900; color: var(--text-main);">00:00</span>
+          <div class="flex-center" style="gap: 6px;">
+            <button id="readingTimerPlayBtn" class="action-pill" style="background: var(--blue);" onclick="toggleReadingTimer()">
+              ▶ Start Timer
+            </button>
+            <button class="pill-btn" onclick="resetReadingTimer()" title="Reset stopwatch">🔄</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Page Tracker & Target Minutes -->
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px;">
+        <div>
+          <label style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 3px;">ലക്ഷ്യം (Min)</label>
+          <input type="number" id="readingTargetMinInput" value="25" class="form-input mono" style="text-align: center;">
+        </div>
+        <div>
+          <label style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 3px;">Start Page</label>
+          <input type="text" id="readingStartPageInput" placeholder="1" class="form-input mono" style="text-align: center;">
+        </div>
+        <div>
+          <label style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 3px;">End Page</label>
+          <input type="text" id="readingEndPageInput" placeholder="15" class="form-input mono" style="text-align: center;">
+        </div>
+      </div>
+
+      <!-- Notes Input -->
+      <label style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 4px;">
+        കുറിപ്പുകൾ / പ്രധാന ആശയങ്ങൾ (Notes)
+      </label>
+      <textarea id="readingNotesInput" rows="2" placeholder="വായിച്ചതിൽ നിന്ന് പ്രധാന ആശയങ്ങൾ ഇവിടെ കുറിക്കാം..." class="form-input" style="resize: none; margin-bottom: 16px;"></textarea>
+
+      <!-- Save & Finish Buttons -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <button class="pill-btn flex-center" style="padding: 12px;" onclick="saveReadingHub(false)">💾 Save Options</button>
+        <button class="action-pill flex-center" style="background: var(--blue); padding: 12px;" onclick="saveReadingHub(true)">✔️ Mark Finished</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL 3: PHONE & WHATSAPP SETTINGS MODAL -->
+  <!-- ============================================== -->
+  <div class="modal-backdrop" id="phoneModalBackdrop" onclick="closeModalOnBackdrop(event, 'phoneModalBackdrop')">
+    <div class="modal-box">
+      <div class="flex-between" style="margin-bottom: 12px;">
+        <div class="flex-center" style="gap: 8px;">
+          <span style="font-size: 22px;">📱</span>
+          <div>
+            <h3 style="font-size: 16px; font-weight: 900;">WhatsApp &amp; Phone Alerts</h3>
+            <p style="font-size: 11px; color: var(--text-muted);">ഓർമ്മപ്പെടുത്തലുകൾ ഫോണിൽ ലഭിക്കാൻ</p>
+          </div>
+        </div>
+        <button class="icon-btn-circle" onclick="closePhoneModal()">✕</button>
+      </div>
+
+      <!-- Phone Number Input Form -->
+      <div style="padding: 14px; border-radius: 18px; background: var(--bg-subtle); border: 1px solid var(--border-color); margin-bottom: 14px;">
+        <label style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">
+          WhatsApp / മൊബൈൽ നമ്പർ
+        </label>
+        <div class="flex-center" style="gap: 6px;">
+          <input type="tel" id="userPhoneNumberInput" placeholder="+91 9876543210" class="form-input mono" style="font-weight: 700;">
+          <button class="action-pill" style="background: var(--indigo);" onclick="saveUserPhone()">സേവ്</button>
+        </div>
+        <p style="font-size: 10.5px; color: var(--text-muted); margin-top: 6px;">
+          💡 ഉദാ: 9876543210 അല്ലെങ്കിൽ +919876543210
+        </p>
+      </div>
+
+      <!-- 2 Separate Notification Dispatch Options -->
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+        <!-- Option 1: Completed -->
+        <div style="padding: 12px; border-radius: 16px; background: rgba(18, 183, 106, 0.08); border: 1px solid rgba(18, 183, 106, 0.25);">
+          <div class="flex-between" style="margin-bottom: 6px;">
+            <span style="font-size: 12px; font-weight: 800; color: #12B76A;">1. പൂർത്തിയായവയുടെ റിപ്പോർട്ട്</span>
+            <span class="mono" id="phoneCompletedCountBadge" style="font-size: 11px; font-weight: 800; color: #12B76A;">0 / 13 Done</span>
+          </div>
+          <button class="action-pill" style="background: #12B76A; width: 100%; padding: 9px;" onclick="sendWhatsAppCompleted()">
+            💬 WhatsApp-ലേക്ക് അയക്കുക
+          </button>
+        </div>
+
+        <!-- Option 2: Pending -->
+        <div style="padding: 12px; border-radius: 16px; background: rgba(247, 144, 9, 0.08); border: 1px solid rgba(247, 144, 9, 0.25);">
+          <div class="flex-between" style="margin-bottom: 6px;">
+            <span style="font-size: 12px; font-weight: 800; color: #F79009;">2. ബാക്കിയുള്ളവയുടെ ഓർമ്മപ്പെടുത്തൽ</span>
+            <span class="mono" id="phonePendingCountBadge" style="font-size: 11px; font-weight: 800; color: #F79009;">13 Pending</span>
+          </div>
+          <button class="action-pill" style="background: #F79009; width: 100%; padding: 9px;" onclick="sendWhatsAppPending()">
+            🔔 ബാക്കിയുള്ളവ ഓർമ്മിപ്പിക്കുക
+          </button>
+        </div>
+      </div>
+
+      <!-- Preview Accordion -->
+      <div style="padding: 10px; border-radius: 14px; background: var(--bg-subtle); border: 1px solid var(--border-color); font-size: 11px;">
+        <div class="flex-between" style="margin-bottom: 4px;">
+          <span style="font-weight: 800;">മെസ്സേജ് പ്രിവ്യൂ (Message Preview)</span>
+          <span style="font-size: 10px; color: var(--text-muted);">ഓട്ടോമാറ്റിക് ഫോർമാറ്റ്</span>
+        </div>
+        <pre id="phoneMessagePreviewBox" style="font-family: inherit; white-space: pre-wrap; font-size: 10.5px; max-height: 120px; overflow-y: auto; background: var(--bg-card); padding: 8px; border-radius: 10px; border: 1px solid var(--border-color);"></pre>
+      </div>
+
+      <button class="pill-btn" style="width: 100%; margin-top: 12px; padding: 10px;" onclick="closePhoneModal()">അടയ്ക്കുക</button>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL 4: RESET OPTIONS MODAL (റീസെറ്റ് ഓപ്ഷനുകൾ) -->
+  <!-- ============================================== -->
+  <div class="modal-backdrop" id="resetModalBackdrop" onclick="closeModalOnBackdrop(event, 'resetModalBackdrop')">
+    <div class="modal-box" style="max-width: 380px;">
+      <div class="flex-between" style="margin-bottom: 12px;">
+        <div class="flex-center" style="gap: 8px;">
+          <span style="font-size: 22px;">🔄</span>
+          <div>
+            <h3 style="font-size: 16px; font-weight: 900;">റീസെറ്റ് ഓപ്ഷനുകൾ (Reset)</h3>
+            <p style="font-size: 11px; color: var(--text-muted);">നിങ്ങൾക്ക് അനുയോജ്യമായ ഓപ്ഷൻ തിരഞ്ഞെടുക്കുക</p>
+          </div>
+        </div>
+        <button class="icon-btn-circle" onclick="closeResetModal()">✕</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px; margin: 16px 0;">
+        <!-- Option 1: Reset Today Only -->
+        <div style="padding: 14px; border-radius: 16px; background: var(--bg-subtle); border: 1px solid var(--border-color); cursor: pointer;" onclick="executeResetToday()">
+          <div style="font-size: 13px; font-weight: 800; color: var(--text-main); margin-bottom: 2px;">
+            1. ഇന്നത്തെ ദിനചര്യകൾ മാത്രം റീസെറ്റ് ചെയ്യുക
+          </div>
+          <p style="font-size: 11px; color: var(--text-muted);">
+            ഇന്നത്തെ ടിക്ക് മാർക്കുകളും കൗണ്ടറുകളും പൂജ്യമാക്കും (തുടർച്ചയായ Streak നഷ്ടപ്പെടില്ല).
+          </p>
+          <button class="action-pill" style="background: var(--blue); margin-top: 8px; padding: 6px 12px;">
+            ഇന്നത്തെ റീസെറ്റ് ചെയ്യുക
+          </button>
+        </div>
+
+        <!-- Option 2: Full Factory Reset -->
+        <div style="padding: 14px; border-radius: 16px; background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.25); cursor: pointer;" onclick="executeFullFactoryReset()">
+          <div style="font-size: 13px; font-weight: 800; color: #F43F5E; margin-bottom: 2px;">
+            2. ഫാക്ടറി റീസെറ്റ് (മൊത്തം പുനരാരംഭിക്കുക)
+          </div>
+          <p style="font-size: 11px; color: var(--text-muted);">
+            ആദ്യ ദിവസം മുതൽ എല്ലാം പുനരാരംഭിക്കും (13 അടിസ്ഥാന ദിനചര്യകൾ വീണ്ടും ക്രമീകരിക്കും).
+          </p>
+          <button class="action-pill" style="background: #F43F5E; margin-top: 8px; padding: 6px 12px;">
+            മൊത്തം റീസെറ്റ് ചെയ്യുക
+          </button>
+        </div>
+      </div>
+
+      <button class="pill-btn" style="width: 100%; padding: 10px;" onclick="closeResetModal()">റദ്ദാക്കുക (Cancel)</button>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL 5: ADD NEW TASK MODAL -->
+  <!-- ============================================== -->
+  <div class="modal-backdrop" id="addModalBackdrop" onclick="closeModalOnBackdrop(event, 'addModalBackdrop')">
+    <div class="modal-box">
+      <div class="flex-between" style="margin-bottom: 12px;">
+        <h3 style="font-size: 16px; font-weight: 900;">പുതിയ ടാസ്ക് ചേർക്കുക</h3>
+        <button class="icon-btn-circle" onclick="closeAddModal()">✕</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div>
+          <label style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 3px;">ടാസ്ക് പേര് (English Title)</label>
+          <input type="text" id="newTaskTitleInput" placeholder="e.g., DUHA PRAYER" class="form-input">
+        </div>
+
+        <div>
+          <label style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 3px;">മലയാളം പേര് (Malayalam Title)</label>
+          <input type="text" id="newTaskMlTitleInput" placeholder="ഉദാ: ളുഹാ നിസ്കാരം" class="form-input">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div>
+            <label style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 3px;">സമയം (Time)</label>
+            <input type="time" id="newTaskTimeInput" value="09:00" class="form-input mono">
+          </div>
+
+          <div>
+            <label style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 3px;">വിഭാഗം (Category)</label>
+            <select id="newTaskCatSelect" class="form-input">
+              <option value="spiritual">Spiritual (ആത്മീയവ)</option>
+              <option value="learning">Learning (പഠനം)</option>
+              <option value="work">Work (ജോലി)</option>
+              <option value="fitness">Fitness (വ്യായാമം)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 3px;">തരം (Task Type)</label>
+          <select id="newTaskTypeSelect" class="form-input">
+            <option value="standard">Standard Checklist</option>
+            <option value="counter">Digital Counter (100x)</option>
+            <option value="reading">Reading Hub (Timer)</option>
+          </select>
+        </div>
+
+        <button class="action-pill" style="background: var(--pink); width: 100%; padding: 12px; margin-top: 6px;" onclick="saveNewTask()">
+          + ചേർക്കുക (Add Task)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL 6: LIFETIME FREE PRO BADGE INFO -->
+  <!-- ============================================== -->
+  <div class="modal-backdrop" id="freeProModalBackdrop" onclick="closeModalOnBackdrop(event, 'freeProModalBackdrop')">
+    <div class="modal-box" style="text-align: center; max-width: 360px;">
+      <div style="width: 50px; height: 50px; border-radius: 18px; background: var(--brand-grad); color: #FFF; font-size: 24px; margin: 0 auto 12px;" class="flex-center">
+        💎
+      </div>
+      <h3 style="font-size: 18px; font-weight: 900; margin-bottom: 4px;">oneday ProFREE</h3>
+      <p style="font-size: 13px; font-weight: 700; color: var(--pink); margin-bottom: 12px;">100% സൗജന്യ ലൈഫ് ടൈം വേർഷൻ</p>
+      <div style="text-align: left; background: var(--bg-subtle); padding: 12px; border-radius: 14px; font-size: 12px; line-height: 1.6; color: var(--text-muted); margin-bottom: 14px;">
+        ✔️ 13 നിത്യ ദിനചര്യകൾ ലൈവ് ട്രാക്കിംഗ്<br>
+        ✔️ 100x ഡിജിറ്റൽ ദിക്റ് തസ്ബീഹ് കൗണ്ടർ<br>
+        ✔️ ഫോക്കസ് റീഡിങ് ടൈമറും പേജ് ട്രാക്കറും<br>
+        ✔️ 1-ക്ലിക്ക് വാട്സാപ്പ് തത്സമയ റിപ്പോർട്ട്<br>
+        ✔️ ഓഫ്‌ലൈൻ PWA പ്രവർത്തനം • പരസ്യങ്ങളില്ല
+      </div>
+      <button class="pill-btn" style="width: 100%; padding: 10px;" onclick="closeFreeProModal()">ശരി (Got it)</button>
+    </div>
+  </div>
+
+  <!-- Main JavaScript Bundle -->
+  <script src="./js/app.js"></script>
+
+  <!-- PWA Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then((reg) => {
+          console.log('ONE DAY PWA ServiceWorker registered:', reg.scope);
+        }).catch((err) => {
+          console.log('ServiceWorker registration note:', err);
+        });
+      });
+    }
+
+    // PWA Install Prompt Capture
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (localStorage.getItem('oneday_pwa_dismissed') === '1') return;
+      const banner = document.getElementById('pwaBanner');
+      if (banner) banner.classList.remove('hidden');
+    });
+
+    const installBtn = document.getElementById('pwaInstallBtn');
+    if (installBtn) {
+      installBtn.addEventListener('click', async () => {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          const { outcome } = await deferredPrompt.userChoice;
+          deferredPrompt = null;
+          dismissPwaBanner();
+        }
+      });
+    }
+
+    function dismissPwaBanner() {
+      localStorage.setItem('oneday_pwa_dismissed', '1');
+      const banner = document.getElementById('pwaBanner');
+      if (banner) banner.classList.add('hidden');
+    }
+  </script>
+</body>
+</html>

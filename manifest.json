@@ -1,0 +1,26 @@
+{
+  "name": "ONE DAY - Daily Routine Tracker",
+  "short_name": "ONE DAY",
+  "description": "Daily spiritual routines, 100x Dhikr counters, reading options, time schedules, and automated alerts.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F8F9FD",
+  "theme_color": "#FF4B8B",
+  "orientation": "portrait",
+  "lang": "ml",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

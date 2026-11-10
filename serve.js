@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 3000;
-const PUBLIC_DIR = path.join(__dirname, 'out');
+const PUBLIC_DIR = __dirname;
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -45,8 +45,14 @@ const server = http.createServer((req, res) => {
     filePath = path.join(filePath, 'index.html');
   }
 
-  // Fallback for Next.js routes
+  // Return 404 for missing non-HTML static assets to prevent MIME confusion
   if (!fs.existsSync(filePath)) {
+    const extCheck = path.extname(safePath).toLowerCase();
+    if (extCheck && extCheck !== '.html') {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not found: ' + safePath);
+      return;
+    }
     if (fs.existsSync(filePath + '.html')) {
       filePath = filePath + '.html';
     } else {

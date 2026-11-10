@@ -1,5 +1,14 @@
 @echo off
-title Opening ONE DAY in Chrome...
+title Open ONE DAY in Chrome
+cd /d "%~dp0"
 echo Opening ONE DAY Routine Tracker in Google Chrome...
-start chrome "http://localhost:3000" || start "" "http://localhost:3000"
+
+if exist "C:\Program Files\Google\Chrome\Application\chrome.exe" (
+    start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" "%~dp0index.html"
+) else if exist "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" (
+    start "" "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" "%~dp0index.html"
+) else (
+    start "" "%~dp0index.html"
+)
+
 exit

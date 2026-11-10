@@ -1,8 +1,8 @@
 @echo off
-title Push TO-DO App to GitHub
+title Push ONE DAY to GitHub
 cd /d "%~dp0"
 echo ========================================================
-echo        PUSH TO GITHUB: TO-DO (PWA Next.js)
+echo        PUSH TO GITHUB: ONE DAY (TO-DO PWA)
 echo ========================================================
 echo.
 
@@ -15,7 +15,7 @@ echo Adding all files...
 "%GIT_PATH%" add .
 
 echo Committing...
-"%GIT_PATH%" commit -m "Initial commit: Daily Task Tracker PWA with Taskati theme, Dhikr counters, Reading options, and Push notifications"
+"%GIT_PATH%" commit -m "Deploy standalone zero-latency ONE DAY PWA with permanent GitHub Pages hosting"
 
 echo Setting branch to main...
 "%GIT_PATH%" branch -M main
@@ -26,7 +26,7 @@ echo Pushing to https://github.com/mhdjzlomr-a11y/TO-DO.git...
 echo.
 if %ERRORLEVEL% EQU 0 (
     echo ========================================================
-    echo  SUCCESS! All code has been pushed to GitHub!
+    echo  SUCCESS! All code has been pushed to GitHub Pages!
     echo ========================================================
 ) else (
     echo If push failed, check your internet connection or git authentication.
