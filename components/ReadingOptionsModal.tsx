@@ -6,10 +6,14 @@ import { triggerHaptic, playChimeSound } from '@/lib/notifications';
 import { X, BookOpen, Clock, Play, Pause, RotateCcw, Check, Bookmark, FileText } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+import { Language } from '@/lib/translations';
+
 interface ReadingOptionsModalProps {
   task: Task;
+  language?: Language;
   onClose: () => void;
-  onSaveReading: (taskId: string, details: ReadingDetails, markCompleted: boolean) => void;
+  onSave?: (details: ReadingDetails, markCompleted: boolean) => void;
+  onSaveReading?: (taskId: string, details: ReadingDetails, markCompleted: boolean) => void;
 }
 
 const MATERIAL_OPTIONS = [
@@ -20,7 +24,7 @@ const MATERIAL_OPTIONS = [
   { id: 'Self Development', label: 'Self Development', icon: '💡' },
 ];
 
-export default function ReadingOptionsModal({ task, onClose, onSaveReading }: ReadingOptionsModalProps) {
+export default function ReadingOptionsModal({ task, language, onClose, onSave, onSaveReading }: ReadingOptionsModalProps) {
   const initialDetails: ReadingDetails = task.readingDetails || {
     materialType: 'Book',
     title: 'Daily Self Development',
@@ -84,7 +88,8 @@ export default function ReadingOptionsModal({ task, onClose, onSaveReading }: Re
       } catch (e) {}
     }
 
-    onSaveReading(task.id, updated, markDone);
+    if (onSave) onSave(updated, markDone);
+    if (onSaveReading) onSaveReading(task.id, updated, markDone);
     onClose();
   };
 

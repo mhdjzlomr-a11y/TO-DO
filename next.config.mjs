@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  output: 'export', // Allows building static HTML/CSS/JS export for zero-latency PWA & GitHub Pages hosting!
+  output: 'export',
   images: {
     unoptimized: true
   }

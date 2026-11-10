@@ -5,12 +5,16 @@ import { Task, TaskCategory, TaskType } from '@/types/task';
 import { triggerHaptic, playChimeSound } from '@/lib/notifications';
 import { X, Plus, Clock, Tag, Sparkles, Hash, BookOpen } from 'lucide-react';
 
+import { Language } from '@/lib/translations';
+
 interface AddTaskModalProps {
+  language?: Language;
   onClose: () => void;
-  onAddTask: (newTask: Omit<Task, 'id' | 'completed'>) => void;
+  onAdd?: (newTask: Omit<Task, 'id' | 'completed'>) => void;
+  onAddTask?: (newTask: Omit<Task, 'id' | 'completed'>) => void;
 }
 
-export default function AddTaskModal({ onClose, onAddTask }: AddTaskModalProps) {
+export default function AddTaskModal({ language, onClose, onAdd, onAddTask }: AddTaskModalProps) {
   const [title, setTitle] = useState('');
   const [arabicTitle, setArabicTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
@@ -27,7 +31,7 @@ export default function AddTaskModal({ onClose, onAddTask }: AddTaskModalProps) 
     triggerHaptic([40]);
     playChimeSound();
 
-    onAddTask({
+    const taskData: Omit<Task, 'id' | 'completed'> = {
       title: title.trim().toUpperCase(),
       arabicTitle: arabicTitle.trim() || undefined,
       subtitle: subtitle.trim() || undefined,
@@ -45,8 +49,10 @@ export default function AddTaskModal({ onClose, onAddTask }: AddTaskModalProps) 
         startPage: '1',
         endPage: '10'
       } : undefined
-    });
+    };
 
+    if (onAdd) onAdd(taskData);
+    if (onAddTask) onAddTask(taskData);
     onClose();
   };
 

@@ -6,18 +6,27 @@ import { triggerHaptic, playChimeSound } from '@/lib/notifications';
 import { X, RotateCcw, Check, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+import { Language } from '@/lib/translations';
+
 interface DhikrModalProps {
   task: Task;
+  language?: Language;
   onClose: () => void;
-  onUpdateCounter: (taskId: string, count: number, markCompleted?: boolean) => void;
+  onUpdateCount?: (count: number, markCompleted?: boolean) => void;
+  onUpdateCounter?: (taskId: string, count: number, markCompleted?: boolean) => void;
 }
 
-export default function DhikrModal({ task, onClose, onUpdateCounter }: DhikrModalProps) {
+export default function DhikrModal({ task, language, onClose, onUpdateCount, onUpdateCounter }: DhikrModalProps) {
   const target = task.counterTarget || 100;
   const [count, setCount] = useState<number>(task.counterCurrent || 0);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
   const percentage = Math.min(100, Math.round((count / target) * 100));
+
+  const notifyChange = (newCount: number, markCompleted: boolean) => {
+    if (onUpdateCount) onUpdateCount(newCount, markCompleted);
+    if (onUpdateCounter) onUpdateCounter(task.id, newCount, markCompleted);
+  };
 
   const handleIncrement = (incrementBy = 1) => {
     const nextCount = Math.min(target, count + incrementBy);
@@ -38,16 +47,16 @@ export default function DhikrModal({ task, onClose, onUpdateCounter }: DhikrModa
           origin: { y: 0.6 }
         });
       } catch (e) {}
-      onUpdateCounter(task.id, nextCount, true);
+      notifyChange(nextCount, true);
     } else {
-      onUpdateCounter(task.id, nextCount, false);
+      notifyChange(nextCount, false);
     }
   };
 
   const handleReset = () => {
     setCount(0);
     triggerHaptic([60, 40]);
-    onUpdateCounter(task.id, 0, false);
+    notifyChange(0, false);
   };
 
   const handleCompleteNow = () => {
@@ -61,7 +70,7 @@ export default function DhikrModal({ task, onClose, onUpdateCounter }: DhikrModa
         origin: { y: 0.6 }
       });
     } catch (e) {}
-    onUpdateCounter(task.id, target, true);
+    notifyChange(target, true);
   };
 
   return (
